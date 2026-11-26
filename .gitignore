@@ -1,3 +1,5 @@
 /target
 /dist
 /.cargo
+/demo-raw.mp4
+/record-demo.ps1

@@ -216,7 +216,17 @@ impl Scheduler {
                 Some((e.name.clone(), e.creator.clone(), s.label.clone(), s.image.clone()))
             })
         };
-        let Some((name, creator, label, image)) = info else { return };
+        let Some((name, mut creator, label, image)) = info else { return };
+        if creator.id.is_empty() || creator.id == "0" {
+            let uni = self.store.lock().exp(eid).map(|e| e.universe_id.clone()).unwrap_or_default();
+            let found = roblox::universe_details(&cred, &uni).ok().and_then(|(_, _, o)| o).or_else(|| self.store.lock().account.as_ref().and_then(|a| a.user_id.clone()).map(|u| ("User".to_owned(), u)));
+            if let Some((k, id)) = found {
+                creator.kind = k;
+                creator.id = id;
+                let c = creator.clone();
+                self.store.update(|d| if let Some(e) = d.exp_mut(eid) { e.creator = c });
+            }
+        }
         self.with_step(eid, sid, |_, s| {
             s.upload = Upload::Uploading;
             s.error = None;

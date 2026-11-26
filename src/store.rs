@@ -360,7 +360,7 @@ impl Store {
         self.auth.lock().unwrap().api_key = None;
     }
     pub fn oauth_secret(&self) -> Option<String> {
-        self.auth.lock().unwrap().secret.clone()
+        self.auth.lock().unwrap().secret.clone().or_else(crate::oauth::embedded_secret)
     }
     pub fn set_oauth_secret(&self, s: Option<&str>) {
         let s = s.map(str::trim).filter(|s| !s.is_empty());

@@ -30,6 +30,8 @@ sha2 = "0.10"
 
 [build-dependencies]
 winresource = "0.1"
+keyring = { version = "3", features = ["windows-native"] }
+rand = "0.9"
 
 [profile.release]
 opt-level = 3

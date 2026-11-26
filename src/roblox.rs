@@ -113,6 +113,10 @@ pub fn get_game(universe_id: &str) -> R<GameInfo> {
     if g.is_null() {
         return Err(err(404, format!("No experience found with universe ID {universe_id}.")));
     }
+    // Private or not-yet-rated games come back as a placeholder with ID 0.
+    if g["id"].as_u64().unwrap_or(0) == 0 {
+        return Err(err(451, "Roblox hides this experience's details publicly."));
+    }
     Ok(GameInfo {
         universe_id: g["id"].as_u64().map(|v| v.to_string()).unwrap_or_default(),
         root_place_id: g["rootPlaceId"].as_u64().map(|v| v.to_string()).unwrap_or_default(),
@@ -210,6 +214,54 @@ pub fn introspect_key(key: &str) -> R<Value> {
     let body = json!({ "apiKey": key }).to_string();
     let res = send(|| client().post(format!("{OC}/api-keys/v1/introspect")).header("Content-Type", "application/json").body(body.clone()), 2)?;
     res.json().map_err(|e| err(0, e.to_string()))
+}
+
+/// Universe details through Open Cloud (works for private games you have access to):
+/// (display name, root place ID, (owner kind "User"/"Group", owner ID)).
+pub fn universe_details(cred: &Cred, universe_id: &str) -> R<(Option<String>, Option<String>, Option<(String, String)>)> {
+    let v = get_json(&format!("{OC}/cloud/v2/universes/{universe_id}"), Some(cred))?;
+    let name = v["displayName"].as_str().map(str::to_owned);
+    let root = v["rootPlace"].as_str().and_then(|p| p.rsplit('/').next()).map(str::to_owned);
+    let owner = v["user"].as_str().and_then(|u| u.rsplit('/').next()).map(|id| ("User".to_owned(), id.to_owned()))
+        .or_else(|| v["group"].as_str().and_then(|g| g.rsplit('/').next()).map(|id| ("Group".to_owned(), id.to_owned())));
+    Ok((name, root, owner))
+}
+
+/// Game info that also works for games Roblox hides publicly: falls back to Open Cloud
+/// (with your sign-in), the place list, and finally the signed-in user as owner.
+pub fn resolve_game(universe_id: &str, cred: Option<&Cred>, account_user: Option<String>) -> R<GameInfo> {
+    match get_game(universe_id) {
+        Ok(g) => return Ok(g),
+        Err(e) if e.status != 451 => return Err(e),
+        Err(_) if cred.is_none() => {
+            return Err(err(451, "Roblox hides this game publicly (for example, it's 16+ or private). Connect your Roblox account first, then add it."));
+        }
+        Err(_) => {}
+    }
+    let mut g = GameInfo { universe_id: universe_id.to_owned(), root_place_id: String::new(), name: String::new(), creator_kind: "User".into(), creator_id: String::new(), creator_name: String::new(), playing: 0 };
+    if let Some(c) = cred {
+        if let Ok((name, root, owner)) = universe_details(c, universe_id) {
+            g.name = name.unwrap_or_default();
+            g.root_place_id = root.unwrap_or_default();
+            if let Some((k, id)) = owner {
+                g.creator_kind = k;
+                g.creator_id = id;
+            }
+        }
+    }
+    let places = get_places(universe_id, &g.root_place_id);
+    if g.root_place_id.is_empty() {
+        g.root_place_id = places.first().map(|p| p.0.clone()).unwrap_or_default();
+    }
+    if g.name.is_empty() {
+        g.name = places.iter().find(|p| p.0 == g.root_place_id).or(places.first()).map(|p| p.1.clone()).unwrap_or_else(|| format!("Experience {universe_id}"));
+    }
+    if g.creator_id.is_empty() {
+        if let Some(u) = account_user {
+            g.creator_id = u;
+        }
+    }
+    Ok(g)
 }
 
 pub fn check_universe_access(cred: &Cred, universe_id: &str) -> R<()> {

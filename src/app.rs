@@ -29,7 +29,7 @@ enum Drop {
 
 enum Modal {
     AddExp { input: String, busy: bool, err: String },
-    Account { key: String, busy: bool, err: String, cid: String, secret: String, show_setup: bool, show_key: bool },
+    Account { key: String, busy: bool, err: String, cid: String, secret: String, show_setup: bool, show_key: bool, nonce: u64 },
     Date { exp: String, date: String, time: String, err: String },
     Timer { exp: String, id: Option<String>, hours: String, label: String, overlay: Option<String>, err: String },
     Phone { url: String, qr: TextureHandle },
@@ -330,7 +330,7 @@ impl App {
                 if store.lock().experiences.iter().any(|e| e.universe_id == uid_) {
                     return Err("That experience is already in your list.".into());
                 }
-                let g = roblox::get_game(&uid_).map_err(|e| e.msg)?;
+                let g = roblox::resolve_game(&uid_, store.credential().ok().as_ref(), store.lock().account.as_ref().and_then(|a| a.user_id.clone())).map_err(|e| e.msg)?;
                 let places = roblox::get_places(&uid_, &g.root_place_id);
                 let rating = roblox::get_rating(&uid_);
                 let icon = roblox::get_game_icon_png(&uid_).ok().map(|b| store.put_image(&b));
@@ -1128,7 +1128,7 @@ impl App {
                         let eid = e.id.clone();
                         let uni = e.universe_id.clone();
                         self.bg("refresh", move |store| {
-                            let g = roblox::get_game(&uni).map_err(|e| e.msg)?;
+                            let g = roblox::resolve_game(&uni, store.credential().ok().as_ref(), store.lock().account.as_ref().and_then(|a| a.user_id.clone())).map_err(|e| e.msg)?;
                             let places = roblox::get_places(&uni, &g.root_place_id);
                             let rating = roblox::get_rating(&uni);
                             store.update(|d| {
@@ -1271,7 +1271,7 @@ impl App {
 
     fn account_modal(&self) -> Modal {
         let cid = crate::oauth::client_id(&self.store).unwrap_or_default();
-        Modal::Account { key: String::new(), busy: false, err: String::new(), show_setup: cid.is_empty() || (self.store.oauth_secret().is_none() && !self.store.uses_oauth()), cid, secret: String::new(), show_key: false }
+        Modal::Account { key: String::new(), busy: false, err: String::new(), show_setup: cid.is_empty() || (self.store.oauth_secret().is_none() && !self.store.uses_oauth()), cid, secret: String::new(), show_key: false, nonce: rand::random() }
     }
 
     fn start_signin(&mut self) {
@@ -1429,8 +1429,9 @@ impl App {
             err_line(ui, err);
         });
 
-        // ---- one-time setup ----
+        // ---- one-time setup (hidden when a secret is built in or saved) ----
         ui.add_space(12.0);
+        if self.store.oauth_secret().is_none() || *show_setup {
         let setup_hdr = egui::CollapsingHeader::new(RichText::new(if has_cid { "Sign in with Roblox setup" } else { "One-time setup (about 2 minutes)" }).font(ui::semi(13.0)))
             .id_salt("oauth-setup")
             .open(if *show_setup { Some(true) } else { None })
@@ -1489,6 +1490,7 @@ impl App {
             });
         if setup_hdr.header_response.clicked() {
             *show_setup = false;
+        }
         }
 
         // ---- API key fallback ----
@@ -1591,9 +1593,9 @@ impl App {
                         });
                     });
                 }
-                Modal::Account { key, busy, err, cid, secret, show_setup, show_key } => {
+                Modal::Account { key, busy, err, cid, secret, show_setup, show_key, nonce } => {
                     let max_h = ctx.screen_rect().height() - 110.0;
-                    egui::ScrollArea::vertical().max_height(max_h).min_scrolled_height(max_h.min(660.0)).auto_shrink([false, true]).show(ui, |ui| {
+                    egui::ScrollArea::vertical().id_salt(("acct", *nonce)).max_height(max_h).min_scrolled_height(max_h.min(660.0)).auto_shrink([false, true]).show(ui, |ui| {
                         if self.account_ui(ui, ctx, data, key, busy, err, cid, secret, show_setup, show_key) {
                             close = true;
                         }

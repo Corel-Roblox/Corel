@@ -33,6 +33,13 @@ pub fn client_id(store: &Store) -> Option<String> {
     store.lock().oauth_client_id.clone().filter(|s| !s.trim().is_empty()).or_else(|| option_env!("ROICON_CLIENT_ID").map(str::to_owned)).or_else(|| Some(DEFAULT_CLIENT_ID.to_owned()))
 }
 
+/// Client secret built into this binary by build.rs (if one was available at build time).
+pub fn embedded_secret() -> Option<String> {
+    let (x, k) = (option_env!("ROICON_SECRET_X")?, option_env!("ROICON_SECRET_K")?);
+    let hex = |s: &str| (0..s.len()).step_by(2).filter_map(|i| u8::from_str_radix(s.get(i..i + 2)?, 16).ok()).collect::<Vec<u8>>();
+    String::from_utf8(hex(x).iter().zip(hex(k)).map(|(a, b)| a ^ b).collect()).ok()
+}
+
 fn client() -> reqwest::blocking::Client {
     reqwest::blocking::Client::builder().user_agent("Roicon/1.0").timeout(Duration::from_secs(30)).build().expect("http")
 }
