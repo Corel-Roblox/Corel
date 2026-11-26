@@ -224,10 +224,44 @@ pub fn run_installer() {
         return;
     }
     for lnk in shortcut_paths() {
+        let _ = std::fs::remove_file(&lnk);
         let _ = make_shortcut(&target, &lnk);
     }
     write_uninstall_entry(&target);
+    refresh_icons();
     let _ = std::process::Command::new(&target).arg("--after-update").spawn();
+}
+
+/// Windows caches icons by file path, and updates replace the exe at the same path,
+/// so after an install or update the old icon can keep showing. Re-create the
+/// shortcuts and tell the shell the icons changed.
+pub fn refresh_icons() {
+    use windows_sys::Win32::UI::Shell::{SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNE_UPDATEITEM, SHCNF_FLUSHNOWAIT, SHCNF_IDLIST, SHCNF_PATHW};
+    let exe = installed_exe();
+    for lnk in shortcut_paths() {
+        if lnk.exists() || test_dir().is_none() {
+            let _ = std::fs::remove_file(&lnk);
+            let _ = make_shortcut(&exe, &lnk);
+        }
+    }
+    let mut paths = vec![exe.clone()];
+    paths.extend(shortcut_paths());
+    unsafe {
+        for p in &paths {
+            let w = wide(&p.to_string_lossy());
+            SHChangeNotify(SHCNE_UPDATEITEM as i32, SHCNF_PATHW | SHCNF_FLUSHNOWAIT, w.as_ptr() as *const _, std::ptr::null());
+        }
+        SHChangeNotify(SHCNE_ASSOCCHANGED as i32, SHCNF_IDLIST | SHCNF_FLUSHNOWAIT, std::ptr::null(), std::ptr::null());
+    }
+    // Ask Explorer to rebuild its icon cache (built into Windows 10/11).
+    if test_dir().is_none() {
+        use std::os::windows::process::CommandExt;
+        let _ = std::process::Command::new("ie4uinit.exe").arg("-show").creation_flags(0x0800_0000).spawn();
+    }
+}
+
+fn installed_version() -> Option<String> {
+    winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER).open_subkey(UNINSTALL_KEY).ok()?.get_value("DisplayVersion").ok()
 }
 
 /// Removes any leftover from a previous update or install.
@@ -238,8 +272,11 @@ pub fn cleanup_old() {
             let _ = std::fs::remove_file(d.join("Roicon.new.exe"));
         }
     }
-    // Keep the version in "Apps & features" current after auto-updates.
+    // First start of a new version: refresh icons, then record the version in "Apps & features".
     if is_installed_copy() {
+        if installed_version().as_deref() != Some(VERSION) {
+            std::thread::spawn(refresh_icons);
+        }
         write_uninstall_entry(&installed_exe());
     }
 }

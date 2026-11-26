@@ -1,6 +1,6 @@
 [package]
 name = "roicon"
-version = "1.4.0"
+version = "1.4.1"
 edition = "2021"
 description = "Countdown icons for Roblox. On autopilot."
 
@@ -22,7 +22,7 @@ keyring = { version = "3", features = ["windows-native"] }
 winreg = "0.55"
 tray-icon = "0.21"
 raw-window-handle = "0.6"
-windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_Security"] }
+windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_Security", "Win32_UI_Shell"] }
 rand = "0.9"
 base64 = "0.22"
 dirs = "6"
