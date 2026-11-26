@@ -2,6 +2,7 @@
 
 mod app;
 mod images;
+mod install;
 mod oauth;
 mod relay;
 mod roblox;
@@ -62,16 +63,6 @@ pub fn set_launch_at_login(on: bool) {
     }
 }
 
-fn single_instance() -> bool {
-    use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
-    use windows_sys::Win32::System::Threading::CreateMutexW;
-    let name: Vec<u16> = "Local\\RoiconSingleInstance\0".encode_utf16().collect();
-    unsafe {
-        CreateMutexW(std::ptr::null(), 1, name.as_ptr());
-        GetLastError() != ERROR_ALREADY_EXISTS
-    }
-}
-
 fn bring_existing_to_front() {
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
     let title: Vec<u16> = "Roicon\0".encode_utf16().collect();
@@ -117,13 +108,33 @@ fn main() -> eframe::Result {
         let _ = std::fs::write(out, res);
         return Ok(());
     }
+    // `roicon.exe --test-update <pretend-version> <file>`: runs the updater once on this exe (testing).
+    if let Some(i) = args.iter().position(|a| a == "--test-update") {
+        let v = args.get(i + 1).cloned().unwrap_or_else(|| install::VERSION.into());
+        let out = args.get(i + 2).cloned().unwrap_or_else(|| "update-check.txt".into());
+        let _ = std::fs::write(out, format!("{:?}", install::check_and_download(&v)));
+        return Ok(());
+    }
+    if args.iter().any(|a| a == "--uninstall") {
+        install::run_uninstaller();
+        return Ok(());
+    }
+    // Run from Downloads (or anywhere else): install, add shortcuts, start the installed copy.
+    if install::should_self_install(&args) {
+        install::run_installer();
+        return Ok(());
+    }
     // A separate data folder (ROICON_DATA, used for testing) may run next to the normal app.
-    if std::env::var_os("ROICON_DATA").is_none() && !single_instance() {
+    let after_update = args.iter().any(|a| a == "--after-update");
+    if std::env::var_os("ROICON_DATA").is_none() && !install::single_instance(after_update) {
         bring_existing_to_front();
         return Ok(());
     }
     let hidden = std::env::args().any(|a| a == "--hidden");
+    install::listen_for_quit();
+    install::cleanup_old();
     let store = store::Store::open();
+    install::spawn_updater(store.clone());
     set_launch_at_login(store.lock().settings.launch_at_login);
     let sched = scheduler::Scheduler::new(store.clone());
     sched.spawn();

@@ -9,7 +9,7 @@ When the update time hits, the new icon goes live.
 
 ## Run it
 
-`dist/Roicon.exe` (or the latest GitHub release). No install needed. It keeps running in the tray so updates happen on time.
+`dist/Roicon.exe` (or the latest GitHub release). Running it installs Roicon to `%LOCALAPPDATA%\Programs\Roicon`, adds Desktop and Start menu shortcuts, and keeps it up to date from GitHub releases (`--portable` skips the install). It keeps running in the tray so updates happen on time.
 
 ## Connect your Roblox account
 

@@ -25,10 +25,12 @@ pub struct Settings {
     pub notifications: bool,
     /// Show times as 18:00 instead of 6:00 PM. Off by default.
     pub use_24h: bool,
+    /// Download new Roicon versions from GitHub automatically.
+    pub auto_update: bool,
 }
 impl Default for Settings {
     fn default() -> Self {
-        Self { close_to_tray: true, launch_at_login: true, notifications: true, use_24h: false }
+        Self { close_to_tray: true, launch_at_login: true, notifications: true, use_24h: false, auto_update: true }
     }
 }
 

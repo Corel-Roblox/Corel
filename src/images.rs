@@ -322,7 +322,9 @@ pub fn composite(base_png: Option<&[u8]>, overlay_png: Option<&[u8]>, label: &st
                 let mut p = Pixmap::new(SIZE, SIZE).unwrap();
                 p.fill(Color::from_rgba8(0, 0, 0, 96));
                 let art = to_pixmap(&image::imageops::resize(&o, SIZE, SIZE, FilterType::Lanczos3));
-                p.draw_pixmap(0, 0, art.as_ref(), &PixmapPaint::default(), Transform::identity(), None);
+                // The artwork sits 42/1024 above center; move it down to center it.
+                let dy = (SIZE as f32 * 42.0 / 1024.0).round() as i32;
+                p.draw_pixmap(0, dy, art.as_ref(),&PixmapPaint::default(), Transform::identity(), None);
                 p
             }
             None => default_overlay(label),

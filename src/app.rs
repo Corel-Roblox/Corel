@@ -546,6 +546,19 @@ impl App {
             ui::logo(p, Rect::from_center_size(pos2(rect.left() + 22.0, rect.center().y), Vec2::splat(16.0)));
             p.text(pos2(rect.left() + 38.0, rect.center().y), Align2::LEFT_CENTER, "Roicon", ui::reg(12.0), MUTED);
             let w = 46.0;
+            let ready = crate::install::UPDATE_READY.lock().unwrap().clone();
+            if let Some(v) = ready {
+                let label = format!("Update to v{v} ready  ·  Restart");
+                let gal = ui.painter().layout_no_wrap(label.clone(), ui::semi(11.5), Color32::WHITE);
+                let r = Rect::from_center_size(pos2(rect.right() - w * 3.0 - 14.0 - (gal.size().x + 24.0) / 2.0, rect.center().y), vec2(gal.size().x + 24.0, 24.0));
+                let resp = ui.interact(r, Id::new("update-restart"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text("Restart Roicon to finish updating");
+                let p = ui.painter();
+                p.rect_filled(r, 12, if resp.hovered() { Color32::from_rgb(124, 108, 255) } else { ACCENT });
+                p.text(r.center(), Align2::CENTER_CENTER, label, ui::semi(11.5), Color32::WHITE);
+                if resp.clicked() {
+                    crate::install::restart(false);
+                }
+            }
             let maxed = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
             for (i, kind) in ["min", "max", "close"].iter().enumerate() {
                 let r = Rect::from_min_size(pos2(rect.right() - w * (3 - i) as f32, rect.top()), vec2(w, 36.0));
@@ -1004,7 +1017,7 @@ impl App {
                     _ => (Color32::from_rgb(42, 33, 96), Color32::from_rgb(26, 24, 52), Color32::from_rgb(167, 157, 255), Color32::from_rgba_unmultiplied(124, 108, 255, 72)),
                 };
                 p.rect_filled(rect, 16, bg2);
-                p.with_clip_rect(rect.shrink(1.0)).add(hgrad_rounded(rect, bg1, bg2));
+                p.add(hgrad_rounded(rect.shrink(0.5), bg1, bg2, 15.5));
                 ui::glow(&p.with_clip_rect(rect), rect.left_top() + vec2(120.0, -10.0), 260.0, Color32::from_rgba_unmultiplied(150, 135, 255, if u.status.active() { 46 } else { 14 }));
                 p.rect_stroke(rect, 16, Stroke::new(1.0, border), StrokeKind::Inside);
                 let (k, big, meta) = match u.status {
@@ -1530,6 +1543,7 @@ impl App {
         toggle(ui, "Keep running when closed", "Closing the window keeps Roicon in the tray.", s.close_to_tray, |s| s.close_to_tray = !s.close_to_tray);
         toggle(ui, "Notifications", "Tell me when each icon goes live.", s.notifications, |s| s.notifications = !s.notifications);
         toggle(ui, "24-hour time", "Show times like 18:00 instead of 6:00 PM.", s.use_24h, |s| s.use_24h = !s.use_24h);
+        toggle(ui, "Auto-update", &format!("Install new versions of Roicon automatically. You have v{}.", crate::install::VERSION), s.auto_update, |s| s.auto_update = !s.auto_update);
         ui.horizontal(|ui| {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui::button(ui, Btn::Ghost, None, "Done", !*busy).clicked() {
@@ -1996,14 +2010,38 @@ fn dashed_rect(p: &egui::Painter, r: Rect, col: Color32) {
     }
 }
 
-fn hgrad_rounded(r: Rect, a: Color32, b: Color32) -> egui::Shape {
+/// Gradient (a → b left to right, lighter at the bottom left) filling a rounded rect
+/// with corner radius `rad`, so the corners stay round.
+fn hgrad_rounded(r: Rect, a: Color32, b: Color32, rad: f32) -> egui::Shape {
+    let rad = rad.min(r.width() / 2.0).min(r.height() / 2.0);
+    let color_at = |p: Pos2| {
+        let tx = ((p.x - r.left()) / r.width()).clamp(0.0, 1.0);
+        let ty = ((p.y - r.top()) / r.height()).clamp(0.0, 1.0);
+        let left = a.lerp_to_gamma(a.lerp_to_gamma(b, 0.35), ty);
+        left.lerp_to_gamma(b, tx)
+    };
+    let mut pts = Vec::new();
+    let corners = [
+        (pos2(r.right() - rad, r.top() + rad), -90.0f32),
+        (pos2(r.right() - rad, r.bottom() - rad), 0.0),
+        (pos2(r.left() + rad, r.bottom() - rad), 90.0),
+        (pos2(r.left() + rad, r.top() + rad), 180.0),
+    ];
+    for (c, start) in corners {
+        for i in 0..=12 {
+            let ang = (start + 90.0 * i as f32 / 12.0).to_radians();
+            pts.push(c + vec2(ang.cos(), ang.sin()) * rad);
+        }
+    }
     let mut mesh = egui::Mesh::default();
-    mesh.colored_vertex(r.left_top(), a);
-    mesh.colored_vertex(r.right_top(), b);
-    mesh.colored_vertex(r.left_bottom(), a.lerp_to_gamma(b, 0.35));
-    mesh.colored_vertex(r.right_bottom(), b);
-    mesh.add_triangle(0, 1, 2);
-    mesh.add_triangle(1, 2, 3);
+    mesh.colored_vertex(r.center(), color_at(r.center()));
+    for p in &pts {
+        mesh.colored_vertex(*p, color_at(*p));
+    }
+    let n = pts.len() as u32;
+    for i in 0..n {
+        mesh.add_triangle(0, 1 + i, 1 + (i + 1) % n);
+    }
     egui::Shape::mesh(mesh)
 }
 
