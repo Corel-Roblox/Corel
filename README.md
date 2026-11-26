@@ -15,10 +15,11 @@ When the update time hits, the new icon goes live.
 
 Open Settings (bottom left) and press **Connect with Roblox**. Roblox's sign-in page opens in
 your browser; pick your account (and any groups that own your games) and press **Select**.
+Your Roblox profile then shows in the bottom-left corner.
 
-Roicon's OAuth app Client ID is built in. The first time, paste the app's Client Secret under
-"Sign in with Roblox setup" in Settings; it is kept in Windows Credential Manager and is never
-included in the source or the .exe.
+The OAuth client ID and secret are built into the app, so users never see or edit them.
+The secret is not in this repository: release builds get it from the `ROICON_CLIENT_SECRET`
+GitHub Actions secret (see `.github/workflows/release.yml`).
 
 OAuth app settings (Creator Hub → OAuth 2.0 Apps):
 
@@ -49,8 +50,12 @@ phone. This PC does the icon switching, so leave it on (it can sit in the tray).
 ## Build
 
 ```
+$env:ROICON_CLIENT_SECRET = "<client secret>"   # optional; without it, Sign in with Roblox is disabled
 cargo build --release
 ```
+
+Releases: push a tag like `v1.1.0` and the Release workflow builds `Roicon.exe` with the
+secret from GitHub Secrets and attaches it to the GitHub release.
 
 Data lives in `%APPDATA%\Roicon`. Secrets (sign-in token, client secret, API key)
 are stored in Windows Credential Manager.

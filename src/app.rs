@@ -634,24 +634,59 @@ impl App {
                 }
                 p.line_segment([rect.left_top() - vec2(0.0, 2.0), rect.right_top() - vec2(0.0, 2.0)], Stroke::new(1.0, LINE));
                 let c = pos2(rect.left() + 23.0, rect.center().y);
-                p.circle_filled(c, 15.0, ACCENT);
-                let acct = data.account.as_ref();
+                let acct = data.account.clone();
+                let oauth_on = self.store.uses_oauth();
                 let has_key = self.store.has_credential();
-                let name = acct.and_then(|a| a.display_name.clone().or(a.name.clone()).or(a.key_name.clone())).unwrap_or_else(|| if has_key { "Connected".into() } else { "Not connected".into() });
-                let handle = acct.and_then(|a| a.name.clone().map(|n| format!("@{n}"))).unwrap_or_else(|| if has_key { "Roblox connected".into() } else { "Connect Roblox".into() });
-                match acct.and_then(|a| a.avatar.clone()).and_then(|n| self.tex(ctx, &n)) {
-                    Some(t) => {
-                        p.circle_filled(c, 15.0, PANEL3);
-                        egui::Image::new(&t).corner_radius(15).paint_at(ui, Rect::from_center_size(c, Vec2::splat(30.0)));
+                let name = acct.as_ref().and_then(|a| a.display_name.clone().or(a.name.clone()).or(a.key_name.clone())).unwrap_or_else(|| if has_key { "Connected".into() } else { "Not connected".into() });
+                let handle = acct.as_ref().and_then(|a| a.name.clone().map(|n| format!("@{n}"))).unwrap_or_else(|| if has_key { "Roblox connected".into() } else { "Connect Roblox".into() });
+                let avatar = acct.as_ref().and_then(|a| a.avatar.clone()).and_then(|n| self.tex(ctx, &n));
+                // Roblox headshots are transparent, so give them a light backdrop like Roblox does.
+                let draw_avatar = |ui: &Ui, c: Pos2, r: f32, avatar: &Option<TextureHandle>, name: &str| {
+                    let p = ui.painter();
+                    match avatar {
+                        Some(t) => {
+                            p.circle_filled(c, r, Color32::from_rgb(64, 66, 82));
+                            egui::Image::new(t).corner_radius(r as u8).paint_at(ui, Rect::from_center_size(c, Vec2::splat(r * 2.0)));
+                        }
+                        None => {
+                            p.circle_filled(c, r, ACCENT);
+                            p.text(c, Align2::CENTER_CENTER, name.chars().next().unwrap_or('?').to_uppercase().to_string(), ui::bold(r * 0.85), Color32::WHITE);
+                        }
                     }
-                    None => {
-                        p.text(c, Align2::CENTER_CENTER, name.chars().next().unwrap_or('?').to_uppercase().to_string(), ui::bold(12.5), Color32::WHITE);
-                    }
-                }
-                p.text(pos2(rect.left() + 46.0, rect.center().y - 8.0), Align2::LEFT_CENTER, &name, ui::semi(12.8), TEXT);
-                p.text(pos2(rect.left() + 46.0, rect.center().y + 9.0), Align2::LEFT_CENTER, &handle, ui::reg(11.5), if has_key { DIM } else { ACCENT_TXT });
+                };
+                draw_avatar(ui, c, 16.0, &avatar, &name);
+                let p = ui.painter();
+                p.text(pos2(rect.left() + 47.0, rect.center().y - 8.0), Align2::LEFT_CENTER, &name, ui::semi(12.8), TEXT);
+                p.text(pos2(rect.left() + 47.0, rect.center().y + 9.0), Align2::LEFT_CENTER, &handle, ui::reg(11.5), if has_key { DIM } else { ACCENT_TXT });
                 ui::draw_icon(p, Icon::Dots, Rect::from_center_size(pos2(rect.right() - 16.0, rect.center().y), vec2(14.0, 14.0)), DIM);
-                if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+                if oauth_on {
+                    // Roblox profile menu
+                    let user_id = acct.as_ref().and_then(|a| a.user_id.clone());
+                    egui::Popup::menu(&resp).align(egui::RectAlign::TOP_START).gap(6.0).width(rect.width()).show(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        let (hr, _) = ui.allocate_exact_size(vec2(ui.available_width(), 52.0), Sense::hover());
+                        draw_avatar(ui, pos2(hr.left() + 22.0, hr.center().y), 18.0, &avatar, &name);
+                        ui.painter().text(pos2(hr.left() + 48.0, hr.center().y - 8.0), Align2::LEFT_CENTER, &name, ui::semi(13.0), TEXT);
+                        ui.painter().text(pos2(hr.left() + 48.0, hr.center().y + 9.0), Align2::LEFT_CENTER, &handle, ui::reg(11.5), DIM);
+                        ui.separator();
+                        if menu_item(ui, Icon::External, "View Roblox profile", TEXT) {
+                            if let Some(id) = &user_id {
+                                crate::open_url(&format!("https://www.roblox.com/users/{id}/profile"));
+                            }
+                            ui.close();
+                        }
+                        if menu_item(ui, Icon::Sliders, "Account & settings", TEXT) {
+                            self.modal = Some(self.account_modal());
+                            ui.close();
+                        }
+                        if menu_item(ui, Icon::Close, "Disconnect", RED) {
+                            let store = self.store.clone();
+                            std::thread::spawn(move || crate::oauth::sign_out(&store));
+                            ui.close();
+                        }
+                    });
+                } else if resp.clicked() {
                     self.modal = Some(self.account_modal());
                 }
                 ui.add_space(4.0);
@@ -1271,7 +1306,7 @@ impl App {
 
     fn account_modal(&self) -> Modal {
         let cid = crate::oauth::client_id(&self.store).unwrap_or_default();
-        Modal::Account { key: String::new(), busy: false, err: String::new(), show_setup: cid.is_empty() || (self.store.oauth_secret().is_none() && !self.store.uses_oauth()), cid, secret: String::new(), show_key: false, nonce: rand::random() }
+        Modal::Account { key: String::new(), busy: false, err: String::new(), show_setup: false, cid, secret: String::new(), show_key: false, nonce: rand::random() }
     }
 
     fn start_signin(&mut self) {
@@ -1289,7 +1324,7 @@ impl App {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn account_ui(&mut self, ui: &mut Ui, ctx: &Context, data: &Data, key: &mut String, busy: &mut bool, err: &mut String, cid: &mut String, secret: &mut String, show_setup: &mut bool, show_key: &mut bool) -> bool {
+    fn account_ui(&mut self, ui: &mut Ui, ctx: &Context, data: &Data, key: &mut String, busy: &mut bool, err: &mut String, cid: &mut String, secret: &mut String, show_setup: &mut bool, show_key: &mut bool, nonce: &u64) -> bool {
         let mut close = false;
         let oauth_on = self.store.uses_oauth();
         let acct = data.account.clone().filter(|a| oauth_on || a.method != "oauth");
@@ -1421,80 +1456,15 @@ impl App {
                         err.clear();
                         self.start_signin();
                     }
-                    if !has_cid {
-                        ui.label(RichText::new("Finish the one-time setup below first.").size(12.5).color(DIM));
-                    }
+
                 }
             });
             err_line(ui, err);
         });
 
-        // ---- one-time setup (hidden when a secret is built in or saved) ----
-        ui.add_space(12.0);
-        if self.store.oauth_secret().is_none() || *show_setup {
-        let setup_hdr = egui::CollapsingHeader::new(RichText::new(if has_cid { "Sign in with Roblox setup" } else { "One-time setup (about 2 minutes)" }).font(ui::semi(13.0)))
-            .id_salt("oauth-setup")
-            .open(if *show_setup { Some(true) } else { None })
-            .show(ui, |ui| {
-                ui.add(egui::Label::new(RichText::new("Roblox only shows its sign-in page for registered apps, so register Roicon once under your own Roblox account (you need to be ID-verified). Private apps work for up to 10 accounts.").size(12.5).color(MUTED)).wrap());
-                ui.add_space(6.0);
-                let step = |ui: &mut Ui, n: &str, body: &mut dyn FnMut(&mut Ui)| {
-                    ui.horizontal_top(|ui| {
-                        let (c, _) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::hover());
-                        ui.painter().rect_filled(c, 6, Color32::from_rgba_unmultiplied(109, 93, 252, 40));
-                        ui.painter().text(c.center(), Align2::CENTER_CENTER, n, ui::bold(11.0), ACCENT_TXT);
-                        ui.vertical(|ui| body(ui));
-                    });
-                    ui.add_space(6.0);
-                };
-                step(ui, "1", &mut |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("In Creator Hub, open OAuth 2.0 Apps and create an app.").size(12.8));
-                        if ui::link(ui, "Open Creator Hub").clicked() {
-                            crate::open_url("https://create.roblox.com/dashboard/credentials?activeTab=OAuthTab");
-                        }
-                    });
-                });
-                step(ui, "2", &mut |ui| {
-                    ui.label(RichText::new("Add this Redirect URL:").size(12.8));
-                    ui.horizontal(|ui| {
-                        let mut ru = crate::oauth::redirect_uri();
-                        ui.add(egui::TextEdit::singleline(&mut ru).font(egui::TextStyle::Monospace).desired_width(300.0).margin(Margin::symmetric(8, 6)));
-                        if ui::button_sized(ui, Btn::Ghost, None, "Copy", true, 28.0).clicked() {
-                            ctx.copy_text(crate::oauth::redirect_uri());
-                        }
-                    });
-                });
-                step(ui, "3", &mut |ui| {
-                    ui.label(RichText::new("Under Permissions, add: openid, profile, asset:read, asset:write.").size(12.8));
-                });
-                step(ui, "4", &mut |ui| {
-                    ui.label(RichText::new("Paste the Client ID and Client Secret it gives you:").size(12.8));
-                    ui.add(egui::TextEdit::singleline(cid).hint_text("Client ID").desired_width(360.0).margin(Margin::symmetric(8, 7)));
-                    ui.add(egui::TextEdit::singleline(secret).password(true).hint_text(if self.store.oauth_secret().is_some() { "Client Secret (saved, paste to replace)" } else { "Client Secret" }).desired_width(360.0).margin(Margin::symmetric(8, 7)));
-                    ui.label(RichText::new("The secret is kept in Windows Credential Manager on this PC only.").size(11.8).color(DIM));
-                });
-                ui.horizontal(|ui| {
-                    ui.add_space(28.0);
-                    if ui::button(ui, Btn::Primary, None, "Save", !cid.trim().is_empty()).clicked() {
-                        let c = cid.trim().to_owned();
-                        self.store.update(|d| d.oauth_client_id = Some(c));
-                        if !secret.trim().is_empty() {
-                            self.store.set_oauth_secret(Some(secret));
-                            secret.clear();
-                        }
-                        *show_setup = false;
-                        self.toast(ctx, "Saved. Now press Connect with Roblox.", false);
-                    }
-                });
-            });
-        if setup_hdr.header_response.clicked() {
-            *show_setup = false;
-        }
-        }
-
         // ---- API key fallback ----
-        egui::CollapsingHeader::new(RichText::new("Advanced: use an Open Cloud API key instead").font(ui::semi(13.0)).color(MUTED)).id_salt("apikey").default_open(*show_key).show(ui, |ui| {
+        egui::CollapsingHeader::new(RichText::new("Advanced").font(ui::semi(13.0)).color(MUTED)).id_salt(("advanced", *nonce)).default_open(*show_key).show(ui, |ui| {
+            ui.label(RichText::new("Use an Open Cloud API key instead").font(ui::semi(13.0)));
             let has = self.store.api_key().is_some();
             if has {
                 ui.horizontal(|ui| {
@@ -1596,7 +1566,7 @@ impl App {
                 Modal::Account { key, busy, err, cid, secret, show_setup, show_key, nonce } => {
                     let max_h = ctx.screen_rect().height() - 110.0;
                     egui::ScrollArea::vertical().id_salt(("acct", *nonce)).max_height(max_h).min_scrolled_height(max_h.min(660.0)).auto_shrink([false, true]).show(ui, |ui| {
-                        if self.account_ui(ui, ctx, data, key, busy, err, cid, secret, show_setup, show_key) {
+                        if self.account_ui(ui, ctx, data, key, busy, err, cid, secret, show_setup, show_key, nonce) {
                             close = true;
                         }
                     });
@@ -1908,6 +1878,17 @@ impl App {
             ctx.request_repaint();
         }
     }
+}
+
+/// A full-width menu row with an icon. Returns true when clicked.
+fn menu_item(ui: &mut Ui, icon: Icon, label: &str, col: Color32) -> bool {
+    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_filled(r, 7, Color32::from_white_alpha(12));
+    }
+    ui::draw_icon(ui.painter(), icon, Rect::from_center_size(pos2(r.left() + 18.0, r.center().y), Vec2::splat(13.0)), col);
+    ui.painter().text(pos2(r.left() + 36.0, r.center().y), Align2::LEFT_CENTER, label, ui::semi(12.8), col);
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
 }
 
 fn draw_lock(p: &egui::Painter, c: Pos2, col: Color32, closed: bool) {

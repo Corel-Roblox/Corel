@@ -1,8 +1,7 @@
 // Build steps:
 // 1. Embed the Roicon logo as the .exe icon (assets/roicon.ico, made with --export-logo).
-// 2. Embed the OAuth client secret so users don't have to paste it. It comes from the
-//    ROICON_CLIENT_SECRET env var, or from Windows Credential Manager where Roicon saved it
-//    ("Roicon" / "roblox-oauth-client-secret"). It is never written to the source tree.
+// 2. Embed the OAuth client secret so users never see or edit it. It comes only from the
+//    ROICON_CLIENT_SECRET env var at build time and is never written to the source tree.
 //    It is XOR-masked in the binary, which hides it from casual inspection, not from a
 //    determined person; if it leaks, regenerate it in Creator Hub and rebuild.
 use rand::Rng;
@@ -23,9 +22,10 @@ fn main() {
     if std::env::var_os("ROICON_NO_EMBED").is_some() {
         return;
     }
-    let secret = std::env::var("ROICON_CLIENT_SECRET").ok().filter(|s| !s.trim().is_empty()).or_else(|| {
-        keyring::Entry::new("Roicon", "roblox-oauth-client-secret").ok().and_then(|e| e.get_password().ok())
-    });
+    let secret = std::env::var("ROICON_CLIENT_SECRET").ok().map(|s| s.trim().to_owned()).filter(|s| !s.is_empty());
+    if secret.is_none() {
+        println!("cargo:warning=Roicon: ROICON_CLIENT_SECRET not set; this build has no OAuth client secret.");
+    }
     if let Some(secret) = secret {
         let mut rng = rand::rng();
         let key: Vec<u8> = (0..secret.len()).map(|_| rng.random()).collect();

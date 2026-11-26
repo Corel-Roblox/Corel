@@ -273,7 +273,6 @@ struct AuthCache {
 const KEYRING_SERVICE: &str = "Roicon";
 const KEYRING_USER: &str = "roblox-open-cloud-api-key";
 const KEYRING_REFRESH: &str = "roblox-oauth-refresh-token";
-const KEYRING_SECRET: &str = "roblox-oauth-client-secret";
 
 fn kr(user: &str) -> Option<keyring::Entry> {
     keyring::Entry::new(KEYRING_SERVICE, user).ok()
@@ -303,7 +302,7 @@ impl Store {
         if data.relay_token.is_empty() {
             data.relay_token = random_token();
         }
-        let auth = AuthCache { api_key: kr_get(KEYRING_USER), refresh: kr_get(KEYRING_REFRESH), access: None, secret: kr_get(KEYRING_SECRET) };
+        let auth = AuthCache { api_key: kr_get(KEYRING_USER), refresh: kr_get(KEYRING_REFRESH), access: None, secret: None };
         Store { inner: Arc::new(Mutex::new(data)), dir, img_dir, version: Default::default(), repaint: Default::default(), auth: Arc::new(Mutex::new(auth)) }
     }
 
@@ -360,12 +359,7 @@ impl Store {
         self.auth.lock().unwrap().api_key = None;
     }
     pub fn oauth_secret(&self) -> Option<String> {
-        self.auth.lock().unwrap().secret.clone().or_else(crate::oauth::embedded_secret)
-    }
-    pub fn set_oauth_secret(&self, s: Option<&str>) {
-        let s = s.map(str::trim).filter(|s| !s.is_empty());
-        kr_set(KEYRING_SECRET, s);
-        self.auth.lock().unwrap().secret = s.map(str::to_owned);
+        crate::oauth::embedded_secret()
     }
     pub fn oauth_refresh_token(&self) -> Option<String> {
         self.auth.lock().unwrap().refresh.clone()

@@ -95,6 +95,19 @@ fn main() -> eframe::Result {
         let _ = image::imageops::resize(&images::app_icon(1024), 256, 256, image::imageops::FilterType::Lanczos3).save(dir.join("roicon.ico"));
         return Ok(());
     }
+    // `roicon.exe --check-signin <file>` refreshes the Roblox sign-in once and writes
+    // "ok" or the error to <file> (no tokens are written). Used to test a build.
+    if let Some(i) = args.iter().position(|a| a == "--check-signin") {
+        let out = args.get(i + 1).cloned().unwrap_or_else(|| "signin-check.txt".into());
+        let store = store::Store::open();
+        let res = match store.credential() {
+            Ok(c) if c.header == "Authorization" => "ok: signed in with Roblox (token refreshed)".to_string(),
+            Ok(_) => "ok: using API key".to_string(),
+            Err(e) => format!("error: {e}"),
+        };
+        let _ = std::fs::write(out, res);
+        return Ok(());
+    }
     if !single_instance() {
         bring_existing_to_front();
         return Ok(());
@@ -104,6 +117,17 @@ fn main() -> eframe::Result {
     set_launch_at_login(store.lock().settings.launch_at_login);
     let sched = scheduler::Scheduler::new(store.clone());
     sched.spawn();
+    // Keep the Roblox profile (name, @username, avatar) up to date on every start.
+    if store.uses_oauth() {
+        let s = store.clone();
+        std::thread::spawn(move || {
+            if let Ok(c) = s.credential() {
+                if let Some(token) = c.value.strip_prefix("Bearer ") {
+                    oauth::load_profile(&s, token);
+                }
+            }
+        });
+    }
 
     let icon = images::app_icon(64);
     let options = eframe::NativeOptions {

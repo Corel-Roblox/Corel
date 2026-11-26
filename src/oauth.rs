@@ -24,13 +24,12 @@ pub fn redirect_uri() -> String {
     format!("http://localhost:{PORT}/callback")
 }
 
-/// Roicon's registered Roblox OAuth app. Client IDs are public; the secret is not
-/// shipped (paste it in Settings, it is kept in Windows Credential Manager).
-const DEFAULT_CLIENT_ID: &str = "5489589349817571995";
+/// Roicon's registered Roblox OAuth app. The client ID and secret are built into the
+/// binary and can't be changed in the app.
+const CLIENT_ID: &str = "5489589349817571995";
 
-/// Client ID: set in Settings, else ROICON_CLIENT_ID at build time, else Roicon's own.
-pub fn client_id(store: &Store) -> Option<String> {
-    store.lock().oauth_client_id.clone().filter(|s| !s.trim().is_empty()).or_else(|| option_env!("ROICON_CLIENT_ID").map(str::to_owned)).or_else(|| Some(DEFAULT_CLIENT_ID.to_owned()))
+pub fn client_id(_store: &Store) -> Option<String> {
+    Some(option_env!("ROICON_CLIENT_ID").unwrap_or(CLIENT_ID).to_owned())
 }
 
 /// Client secret built into this binary by build.rs (if one was available at build time).
