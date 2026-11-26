@@ -30,7 +30,7 @@ enum Drop {
 enum Modal {
     AddExp { input: String, busy: bool, err: String },
     Account { key: String, busy: bool, err: String, cid: String, secret: String, show_setup: bool, show_key: bool, nonce: u64 },
-    Date { exp: String, date: String, time: String, err: String },
+    Date { exp: String, date: String, time: String, pm: bool, err: String },
     Timer { exp: String, id: Option<String>, hours: String, label: String, overlay: Option<String>, err: String },
     Phone { url: String, qr: TextureHandle },
     ConfirmCancel { exp: String },
@@ -82,11 +82,22 @@ pub struct App {
 fn local(ms: i64) -> chrono::DateTime<Local> {
     Local.timestamp_millis_opt(ms).single().unwrap_or_else(Local::now)
 }
+/// 24-hour clock setting, mirrored here so the time formatters can read it.
+static USE_24H: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn h24() -> bool {
+    USE_24H.load(std::sync::atomic::Ordering::Relaxed)
+}
+/// "18:00" or "6:00 PM"
+fn clock() -> &'static str {
+    if h24() { "%H:%M" } else { "%-I:%M %p" }
+}
+
 fn fmt_when(ms: i64) -> String {
-    local(ms).format("%A, %B %-d at %H:%M").to_string()
+    local(ms).format(&format!("%A, %B %-d at {}", clock())).to_string()
 }
 fn fmt_short(ms: i64) -> String {
-    local(ms).format("%a, %b %-d, %H:%M").to_string()
+    local(ms).format(&format!("%a, %b %-d, {}", clock())).to_string()
 }
 fn fmt_left(ms: i64) -> String {
     if ms <= 0 {
@@ -115,7 +126,7 @@ fn exp_status(e: &Experience, now: i64) -> (String, Color32) {
         Some(u) if u.status == Status::Done => ("Update complete".into(), GREEN),
         Some(u) if u.status == Status::Cancelled => ("Update cancelled".into(), DIM),
         _ => match e.planned_at {
-            Some(t) if t > now => (format!("Planned for {}", local(t).format("%a %H:%M")), DIM),
+            Some(t) if t > now => (format!("Planned for {}", local(t).format(&format!("%a {}", clock()))), DIM),
             _ => ("No update scheduled".into(), DIM),
         },
     }
@@ -609,7 +620,7 @@ impl App {
                     }
                     let tx = tr.right() + 10.0;
                     let maxw = rect.right() - tx - 8.0;
-                    let name = elide(ui, &e.name, ui::semi(13.0), maxw);
+                    let name = elide(ui, &ui::clean(&e.name), ui::semi(13.0), maxw);
                     p.text(pos2(tx, rect.top() + 17.0), Align2::LEFT_CENTER, name, ui::semi(13.0), TEXT);
                     let (st, col) = exp_status(e, now);
                     let st = elide(ui, &st, ui::reg(11.5), maxw);
@@ -743,7 +754,7 @@ impl App {
                 ui.add_space(4.0);
                 ui.vertical(|ui| {
                     ui.add_space(5.0);
-                    ui.label(RichText::new(&e.name).font(ui::bold(20.0)));
+                    ui.label(RichText::new(ui::clean(&e.name)).font(ui::bold(20.0)));
                     let (st, col) = exp_status(e, now);
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
@@ -871,7 +882,7 @@ impl App {
                                     n.with_minute(0).unwrap().with_second(0).unwrap().timestamp_millis() + 3_600_000
                                 });
                                 let d = local(t);
-                                me.modal = Some(Modal::Date { exp: e2.id.clone(), date: d.format("%Y-%m-%d").to_string(), time: d.format("%H:%M").to_string(), err: String::new() });
+                                me.modal = Some(Modal::Date { exp: e2.id.clone(), date: d.format("%Y-%m-%d").to_string(), time: d.format(if h24() { "%H:%M" } else { "%-I:%M" }).to_string(), pm: d.hour() >= 12, err: String::new() });
                             }
                         });
                     });
@@ -1063,7 +1074,7 @@ impl App {
                     ui.add_space(14.0);
                     egui::CollapsingHeader::new(RichText::new("Activity").size(12.5).color(MUTED)).id_salt(("log", &u.id)).show(ui, |ui| {
                         for l in u.log.iter().take(12) {
-                            ui.label(RichText::new(format!("{}  {}", local(l.t).format("%H:%M:%S"), l.msg)).size(12.0).color(DIM));
+                            ui.label(RichText::new(format!("{}  {}", local(l.t).format(if h24() { "%H:%M:%S" } else { "%-I:%M:%S %p" }), l.msg)).size(12.0).color(DIM));
                         }
                     });
                 }
@@ -1420,7 +1431,7 @@ impl App {
                                 ui.painter().circle_filled(c.center(), 17.0, PANEL3);
                             }
                         }
-                        ui.label(RichText::new(&g.name).size(13.5));
+                        ui.label(RichText::new(ui::clean(&g.name)).size(13.5));
                         if g.kind == "Group" {
                             ui::chip(ui, ChipKind::Purple, false, false, "Group");
                         }
@@ -1518,6 +1529,7 @@ impl App {
         toggle(ui, "Start with Windows", "Runs quietly in the tray so updates happen on time.", s.launch_at_login, |s| s.launch_at_login = !s.launch_at_login);
         toggle(ui, "Keep running when closed", "Closing the window keeps Roicon in the tray.", s.close_to_tray, |s| s.close_to_tray = !s.close_to_tray);
         toggle(ui, "Notifications", "Tell me when each icon goes live.", s.notifications, |s| s.notifications = !s.notifications);
+        toggle(ui, "24-hour time", "Show times like 18:00 instead of 6:00 PM.", s.use_24h, |s| s.use_24h = !s.use_24h);
         ui.horizontal(|ui| {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui::button(ui, Btn::Ghost, None, "Done", !*busy).clicked() {
@@ -1571,13 +1583,14 @@ impl App {
                         }
                     });
                 }
-                Modal::Date { exp, date, time, err } => {
+                Modal::Date { exp, date, time, pm, err } => {
+                    let use24 = h24();
                     ui.label(RichText::new("Update date").font(ui::bold(16.0)));
                     ui.label(RichText::new("When should the new icon go live? The countdown icons go up before it.").size(12.8).color(MUTED));
                     ui.add_space(4.0);
                     ui.horizontal_wrapped(|ui| {
                         let now = Local::now();
-                        let at = |d: chrono::DateTime<Local>| (d.format("%Y-%m-%d").to_string(), d.format("%H:%M").to_string());
+                        let at = |d: chrono::DateTime<Local>| (d.format("%Y-%m-%d").to_string(), d.format(if use24 { "%H:%M" } else { "%-I:%M" }).to_string(), d.hour() >= 12);
                         let next18 = |days: i64| {
                             let d = (now + CDur::days(days)).date_naive().and_time(NaiveTime::from_hms_opt(18, 0, 0).unwrap());
                             Local.from_local_datetime(&d).single().unwrap_or(now)
@@ -1589,11 +1602,18 @@ impl App {
                         };
                         let sat = (6 - now.weekday().num_days_from_monday() as i64 - 1).rem_euclid(7);
                         let sat = if sat == 0 && now.hour() >= 18 { 7 } else { sat };
-                        let picks = [("In 12 hours", at(in12)), ("Tonight 18:00", at(next18(if now.hour() >= 18 { 1 } else { 0 }))), ("Tomorrow 18:00", at(next18(1))), ("Saturday 18:00", at(next18(sat)))];
-                        for (lab, (d, t)) in picks {
-                            if ui::button_sized(ui, Btn::Ghost, None, lab, true, 28.0).clicked() {
+                        let six = if use24 { "18:00" } else { "6:00 PM" };
+                        let picks = [
+                            ("In 12 hours".to_string(), at(in12)),
+                            (format!("Tonight {six}"), at(next18(if now.hour() >= 18 { 1 } else { 0 }))),
+                            (format!("Tomorrow {six}"), at(next18(1))),
+                            (format!("Saturday {six}"), at(next18(sat))),
+                        ];
+                        for (lab, (d, t, p)) in picks {
+                            if ui::button_sized(ui, Btn::Ghost, None, &lab, true, 28.0).clicked() {
                                 *date = d;
                                 *time = t;
+                                *pm = p;
                             }
                         }
                     });
@@ -1601,17 +1621,57 @@ impl App {
                     ui.horizontal(|ui| {
                         ui.vertical(|ui| {
                             ui.label(RichText::new("Date (YYYY-MM-DD)").font(ui::semi(12.0)).color(MUTED));
-                            ui.add(egui::TextEdit::singleline(date).desired_width(220.0).margin(Margin::symmetric(10, 9)));
+                            ui.add(egui::TextEdit::singleline(date).desired_width(200.0).margin(Margin::symmetric(10, 9)));
                         });
                         ui.vertical(|ui| {
-                            ui.label(RichText::new("Time (24h, HH:MM)").font(ui::semi(12.0)).color(MUTED));
-                            ui.add(egui::TextEdit::singleline(time).desired_width(150.0).margin(Margin::symmetric(10, 9)));
+                            ui.label(RichText::new(if use24 { "Time (24h, HH:MM)" } else { "Time (H:MM)" }).font(ui::semi(12.0)).color(MUTED));
+                            ui.horizontal(|ui| {
+                                ui.add(egui::TextEdit::singleline(time).desired_width(if use24 { 140.0 } else { 90.0 }).margin(Margin::symmetric(10, 9)));
+                                if !use24 {
+                                    // AM / PM segmented switch
+                                    Frame::new().fill(PANEL).stroke(Stroke::new(1.0, LINE)).corner_radius(9).inner_margin(Margin::same(3)).show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            ui.spacing_mut().item_spacing.x = 2.0;
+                                            for (label, is_pm) in [("AM", false), ("PM", true)] {
+                                                let on = *pm == is_pm;
+                                                let (r, resp) = ui.allocate_exact_size(vec2(44.0, 28.0), Sense::click());
+                                                if on {
+                                                    ui.painter().rect_filled(r, 7, ACCENT);
+                                                } else if resp.hovered() {
+                                                    ui.painter().rect_filled(r, 7, Color32::from_white_alpha(10));
+                                                }
+                                                ui.painter().text(r.center(), Align2::CENTER_CENTER, label, ui::semi(12.5), if on { Color32::WHITE } else { MUTED });
+                                                if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                                                    *pm = is_pm;
+                                                }
+                                            }
+                                        });
+                                    });
+                                }
+                            });
                         });
                     });
-                    let parsed = NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d").ok().zip(NaiveTime::parse_from_str(time.trim(), "%H:%M").ok()).and_then(|(d, t)| Local.from_local_datetime(&d.and_time(t)).single());
+                    let parsed_time = if use24 {
+                        NaiveTime::parse_from_str(time.trim(), "%H:%M").ok()
+                    } else {
+                        // "6:30" or "6" with the AM/PM switch; also accept "6:30 pm" typed in.
+                        let raw = time.trim().to_lowercase();
+                        let typed_pm = raw.ends_with("pm") || raw.ends_with('p');
+                        let typed_am = raw.ends_with("am") || raw.ends_with('a');
+                        let digits: String = raw.trim_end_matches(|c: char| c.is_alphabetic() || c.is_whitespace()).to_string();
+                        let (hs, ms) = digits.split_once(':').unwrap_or((digits.as_str(), "0"));
+                        match (hs.trim().parse::<u32>(), ms.trim().parse::<u32>()) {
+                            (Ok(h), Ok(m)) if (1..=12).contains(&h) && m < 60 => {
+                                let is_pm = if typed_pm { true } else if typed_am { false } else { *pm };
+                                NaiveTime::from_hms_opt(h % 12 + if is_pm { 12 } else { 0 }, m, 0)
+                            }
+                            _ => None,
+                        }
+                    };
+                    let parsed = NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d").ok().zip(parsed_time).and_then(|(d, t)| Local.from_local_datetime(&d.and_time(t)).single());
                     match parsed {
                         Some(p) => ui.label(RichText::new(format!("{} · in {}", fmt_when(p.timestamp_millis()), fmt_left(p.timestamp_millis() - now_ms()))).size(12.5).color(if p.timestamp_millis() > now_ms() { GREEN } else { RED })),
-                        None => ui.label(RichText::new("Enter a date like 2026-11-28 and a time like 18:00.").size(12.5).color(DIM)),
+                        None => ui.label(RichText::new(if use24 { "Enter a date like 2026-11-28 and a time like 18:00." } else { "Enter a date like 2026-11-28 and a time like 6:00, then pick AM or PM." }).size(12.5).color(DIM)),
                     };
                     err_line(ui, err);
                     ui.horizontal(|ui| {
@@ -1761,7 +1821,7 @@ impl App {
                     });
                 }
                 Modal::ConfirmRemove { exp } => {
-                    let name = data.exp(exp).map(|e| e.name.clone()).unwrap_or_default();
+                    let name = data.exp(exp).map(|e| ui::clean(&e.name)).unwrap_or_default();
                     ui.label(RichText::new(format!("Remove {name}?")).font(ui::bold(16.0)));
                     let running = data.exp(exp).map(|e| e.active_update().is_some()).unwrap_or(false);
                     ui.add(egui::Label::new(RichText::new(if running { "Cancel the running update first." } else { "It is removed from Roicon only. Nothing changes on Roblox." }).size(12.8).color(MUTED)).wrap());
@@ -2005,6 +2065,7 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.handle_msgs(ctx);
         let data = self.store.lock().clone();
+        USE_24H.store(data.settings.use_24h, std::sync::atomic::Ordering::Relaxed);
         let now = now_ms();
         self.handle_close(ctx, &data);
 

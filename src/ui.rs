@@ -18,6 +18,14 @@ pub const GREEN: Color32 = Color32::from_rgb(61, 220, 151);
 pub const AMBER: Color32 = Color32::from_rgb(245, 181, 68);
 pub const RED: Color32 = Color32::from_rgb(248, 113, 113);
 
+/// Game names from Roblox often contain emoji with invisible modifier characters
+/// (variation selectors, zero-width joiners, skin tones) that egui draws as boxes.
+pub fn clean(s: &str) -> String {
+    s.chars()
+        .filter(|c| !matches!(*c, '\u{FE0E}' | '\u{FE0F}' | '\u{200D}' | '\u{20E3}') && !('\u{1F3FB}'..='\u{1F3FF}').contains(c))
+        .collect()
+}
+
 pub fn bold(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name("bold".into()))
 }
@@ -42,7 +50,13 @@ pub fn setup(ctx: &egui::Context) {
     add("ui-regular", &["segoeui.ttf"], FontFamily::Proportional);
     add("ui-bold", &["segoeuib.ttf"], FontFamily::Name("bold".into()));
     add("ui-semibold", &["seguisb.ttf", "segoeuib.ttf"], FontFamily::Name("semibold".into()));
-    add("ui-symbols", &["seguisym.ttf"], FontFamily::Proportional);
+    // Fallbacks (appended, not first): symbols and emoji such as the snowflake in "[❄️] Build a Snowman".
+    for (name, file) in [("ui-symbols", "seguisym.ttf"), ("ui-emoji", "seguiemj.ttf")] {
+        if let Some(bytes) = load(file) {
+            fonts.font_data.insert(name.into(), Arc::new(egui::FontData::from_owned(bytes)));
+            fonts.families.entry(FontFamily::Proportional).or_default().push(name.into());
+        }
+    }
     // Fallbacks so the named families always resolve.
     let prop = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
     for f in ["bold", "semibold"] {

@@ -95,6 +95,15 @@ fn main() -> eframe::Result {
         let _ = image::imageops::resize(&images::app_icon(1024), 256, 256, image::imageops::FilterType::Lanczos3).save(dir.join("roicon.ico"));
         return Ok(());
     }
+    // `roicon.exe --preview-overlay <icon.png> <out.png> "5 Hours"` renders a countdown icon.
+    if let Some(i) = args.iter().position(|a| a == "--preview-overlay") {
+        if let (Some(src), Some(out)) = (args.get(i + 1), args.get(i + 2)) {
+            let label = args.get(i + 3).cloned().unwrap_or_else(|| "5 Hours".into());
+            let base = std::fs::read(src).ok();
+            let _ = images::composite(base.as_deref(), None, &label).save(out);
+        }
+        return Ok(());
+    }
     // `roicon.exe --check-signin <file>` refreshes the Roblox sign-in once and writes
     // "ok" or the error to <file> (no tokens are written). Used to test a build.
     if let Some(i) = args.iter().position(|a| a == "--check-signin") {
@@ -108,7 +117,8 @@ fn main() -> eframe::Result {
         let _ = std::fs::write(out, res);
         return Ok(());
     }
-    if !single_instance() {
+    // A separate data folder (ROICON_DATA, used for testing) may run next to the normal app.
+    if std::env::var_os("ROICON_DATA").is_none() && !single_instance() {
         bring_existing_to_front();
         return Ok(());
     }

@@ -86,7 +86,7 @@ fn handle(store: &Store, req: tiny_http::Request) {
                 })
                 .collect();
             let acct = d.account.as_ref().map(|a| json!({ "name": a.display_name.clone().or(a.name.clone()).or(a.key_name.clone()), "handle": a.name }));
-            let body = json!({ "account": acct, "experiences": exps, "now": now_ms() }).to_string();
+            let body = json!({ "account": acct, "experiences": exps, "now": now_ms(), "use24h": d.settings.use_24h }).to_string();
             drop(d);
             respond(req, 200, "application/json", body.into_bytes())
         }
@@ -156,7 +156,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const img=n=>n?`/img?t=${encodeURIComponent(T)}&n=${encodeURIComponent(n)}`:'';
 function left(ms){if(ms<=0)return'now';const s=Math.floor(ms/1000),d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
 return d?`${d}d ${h}h`:h?`${h}h ${String(m).padStart(2,'0')}m`:`${m}m ${String(s%60).padStart(2,'0')}s`}
-function when(t){const d=new Date(t);return d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})+' at '+d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false})}
+function when(t){const d=new Date(t);return d.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})+' at '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:!(S&&S.use24h)})}
 function render(){if(!S)return;const now=Date.now()+skew;const a=S.account;
 document.getElementById('acct').innerHTML=a?`<div class="av">${esc((a.name||'?')[0].toUpperCase())}</div><div class="g"><b>${esc(a.name)}</b><small>${a.handle?'@'+esc(a.handle):''}</small></div><span class="ok">✓ Signed in</span>`:`<div class="g"><b>No Roblox key yet</b><small>Add one in the desktop app</small></div>`;
 const L=S.experiences.filter(e=>e.update);document.getElementById('list').innerHTML=L.length?L.map(e=>{const u=e.update,act=['preparing','scheduled','restoring'].includes(u.status);

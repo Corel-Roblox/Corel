@@ -23,10 +23,12 @@ pub struct Settings {
     pub close_to_tray: bool,
     pub launch_at_login: bool,
     pub notifications: bool,
+    /// Show times as 18:00 instead of 6:00 PM. Off by default.
+    pub use_24h: bool,
 }
 impl Default for Settings {
     fn default() -> Self {
-        Self { close_to_tray: true, launch_at_login: true, notifications: true }
+        Self { close_to_tray: true, launch_at_login: true, notifications: true, use_24h: false }
     }
 }
 

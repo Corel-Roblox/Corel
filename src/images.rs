@@ -47,6 +47,18 @@ pub fn fit_overlay(bytes: &[u8]) -> Result<Vec<u8>, String> {
     Ok(encode_png(&canvas))
 }
 
+/// Heavy font for countdown labels (Segoe UI Black reads like Roblox thumbnail text).
+fn overlay_font() -> Option<&'static FontVec> {
+    static F: std::sync::OnceLock<Option<FontVec>> = std::sync::OnceLock::new();
+    F.get_or_init(|| {
+        let dir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".into());
+        ["seguibl.ttf", "ariblk.ttf", "segoeuib.ttf", "arialbd.ttf"]
+            .iter()
+            .find_map(|f| std::fs::read(format!("{dir}\\Fonts\\{f}")).ok().and_then(|b| FontVec::try_from_vec(b).ok()))
+    })
+    .as_ref()
+}
+
 fn font() -> Option<&'static FontVec> {
     static F: std::sync::OnceLock<Option<FontVec>> = std::sync::OnceLock::new();
     F.get_or_init(|| {
@@ -64,7 +76,10 @@ fn font() -> Option<&'static FontVec> {
 }
 
 fn text_path(text: &str, px: f32, cx: f32, baseline: f32) -> Option<(tiny_skia::Path, f32)> {
-    let font = font()?;
+    text_path_with(font()?, text, px, cx, baseline)
+}
+
+fn text_path_with(font: &FontVec, text: &str, px: f32, cx: f32, baseline: f32) -> Option<(tiny_skia::Path, f32)> {
     let scaled = font.as_scaled(px);
     let scale = px / font.units_per_em()?;
     let mut width = 0.0;
@@ -189,23 +204,89 @@ fn rounded_rect(r: tiny_skia::Rect, rad: f32) -> tiny_skia::Path {
     pb.finish().unwrap()
 }
 
-/// The built-in overlay: dimmed icon, hourglass and a big outlined label.
+/// Clean white hourglass: rounded bars, solid white glass, dark sand (Roblox-thumbnail style).
+fn hourglass_clean(pm: &mut Pixmap, cx: f32, top: f32, h: f32) {
+    let w = h * 0.70;
+    let bar = h * 0.115;
+    let (gt, gb) = (top + bar, top + h - bar);
+    let cy = (gt + gb) / 2.0;
+    let half = w * 0.40;
+    let neck = w * 0.06;
+    let mut pb = PathBuilder::new();
+    pb.move_to(cx - half, gt);
+    pb.line_to(cx + half, gt);
+    pb.cubic_to(cx + half, cy - h * 0.13, cx + neck, cy - h * 0.07, cx + neck, cy);
+    pb.cubic_to(cx + neck, cy + h * 0.07, cx + half, cy + h * 0.13, cx + half, gb);
+    pb.line_to(cx - half, gb);
+    pb.cubic_to(cx - half, cy + h * 0.13, cx - neck, cy + h * 0.07, cx - neck, cy);
+    pb.cubic_to(cx - neck, cy - h * 0.07, cx - half, cy - h * 0.13, cx - half, gt);
+    pb.close();
+    let glass = pb.finish().unwrap();
+    pm.fill_path(&glass, &paint(Color::WHITE), FillRule::Winding, Transform::identity(), None);
+    let st = Stroke { width: h * 0.075, line_cap: LineCap::Round, line_join: LineJoin::Round, ..Default::default() };
+    pm.stroke_path(&glass, &paint(Color::WHITE), &st, Transform::identity(), None);
+    // sand: most of it still in the top bulb, a small mound below, and the falling stream
+    let dark = paint(Color::from_rgba8(22, 22, 28, 255));
+    let mut sand = PathBuilder::new();
+    let t0 = gt + (cy - gt) * 0.22;
+    let tw = half * 0.78;
+    sand.move_to(cx - tw, t0);
+    sand.line_to(cx + tw, t0);
+    sand.cubic_to(cx + tw, t0 + (cy - t0) * 0.45, cx + neck * 0.9, cy - h * 0.06, cx + neck * 0.5, cy - h * 0.02);
+    sand.line_to(cx - neck * 0.5, cy - h * 0.02);
+    sand.cubic_to(cx - neck * 0.9, cy - h * 0.06, cx - tw, t0 + (cy - t0) * 0.45, cx - tw, t0);
+    sand.close();
+    let b0 = gb - (gb - cy) * 0.30;
+    sand.move_to(cx - half * 0.70, gb - h * 0.035);
+    sand.quad_to(cx, b0 - h * 0.06, cx + half * 0.70, gb - h * 0.035);
+    sand.close();
+    pm.fill_path(&sand.finish().unwrap(), &dark, FillRule::Winding, Transform::identity(), None);
+    let mut stream = PathBuilder::new();
+    stream.move_to(cx, cy - h * 0.01);
+    stream.line_to(cx, b0 - h * 0.03);
+    pm.stroke_path(&stream.finish().unwrap(), &dark, &Stroke { width: h * 0.02, line_cap: LineCap::Round, ..Default::default() }, Transform::identity(), None);
+    // bars
+    for y in [top, top + h - bar] {
+        let r = tiny_skia::Rect::from_xywh(cx - w / 2.0, y, w, bar).unwrap();
+        pm.fill_path(&rounded_rect(r, bar * 0.35), &paint(Color::WHITE), FillRule::Winding, Transform::identity(), None);
+    }
+}
+
+/// The built-in overlay: dimmed icon, a big white hourglass and a bold uppercase
+/// label with a soft shadow ("5 HOURS"), in the style of Roblox countdown thumbnails.
 pub fn default_overlay(label: &str) -> Pixmap {
     let mut pm = Pixmap::new(SIZE, SIZE).unwrap();
-    pm.fill(Color::from_rgba8(0, 0, 0, 92));
-    hourglass(&mut pm, 256.0, 214.0, 210.0);
-    let mut px = 92.0;
-    let mut tp = text_path(label, px, 256.0, 440.0);
+    pm.fill(Color::from_rgba8(0, 0, 0, 96));
+    // soft shadow under the hourglass
+    let mut sh = Pixmap::new(SIZE, SIZE).unwrap();
+    hourglass_clean(&mut sh, 256.0, 46.0, 292.0);
+    for (dy, a) in [(10, 0.18f32), (6, 0.22)] {
+        let mut p = PixmapPaint::default();
+        p.opacity = a;
+        let mut dark = sh.clone();
+        for px in dark.pixels_mut() {
+            let al = px.alpha();
+            *px = tiny_skia::PremultipliedColorU8::from_rgba(0, 0, 0, al).unwrap();
+        }
+        pm.draw_pixmap(0, dy, dark.as_ref(), &p, Transform::identity(), None);
+    }
+    hourglass_clean(&mut pm, 256.0, 46.0, 292.0);
+
+    let text = label.to_uppercase();
+    let Some(font) = overlay_font() else { return pm };
+    let mut px = 118.0;
+    let mut tp = text_path_with(font, &text, px, 256.0, 468.0);
     while let Some((_, w)) = &tp {
-        if *w <= 460.0 || px <= 30.0 {
+        if *w <= 476.0 || px <= 30.0 {
             break;
         }
         px -= 4.0;
-        tp = text_path(label, px, 256.0, 440.0);
+        tp = text_path_with(font, &text, px, 256.0, 468.0);
     }
     if let Some((path, _)) = tp {
-        let st = Stroke { width: px * 0.24, line_join: LineJoin::Round, line_cap: LineCap::Round, ..Default::default() };
-        pm.stroke_path(&path, &paint(Color::from_rgba8(17, 17, 17, 255)), &st, Transform::identity(), None);
+        for (dy, a) in [(9.0, 70u8), (5.0, 80), (2.5, 90)] {
+            pm.fill_path(&path, &paint(Color::from_rgba8(0, 0, 0, a)), FillRule::Winding, Transform::from_translate(0.0, dy), None);
+        }
         pm.fill_path(&path, &paint(Color::WHITE), FillRule::Winding, Transform::identity(), None);
     }
     pm
