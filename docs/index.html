@@ -5,75 +5,164 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Roicon: countdown icons for Roblox</title>
   <meta name="description" content="Roicon puts a countdown on your Roblox game icon before an update, then switches to the new icon right on time.">
+  <meta property="og:title" content="Roicon: countdown icons for Roblox">
+  <meta property="og:description" content="A countdown on your game icon before every update. On autopilot.">
+  <meta property="og:image" content="https://jakedev2.github.io/Roicon/roicon-logo.png">
+  <meta name="theme-color" content="#09080f">
   <link rel="icon" href="favicon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="wrap">
-    <nav>
+  <div class="sky"><span></span><i></i></div>
+
+  <nav class="top">
+    <div class="wrap">
       <a class="brand" href="./"><img src="roicon-logo.png" alt="">Roicon</a>
       <span class="grow"></span>
+      <a class="link hide-sm" href="#how">How it works</a>
+      <a class="link hide-sm" href="#features">Features</a>
       <a class="link" href="privacy.html">Privacy</a>
-      <a class="link" href="terms.html">Terms</a>
       <a class="link" href="https://github.com/jakedev2/Roicon">GitHub</a>
-    </nav>
-
-    <header class="hero">
-      <img src="roicon-logo.png" alt="Roicon logo">
-      <h1>Your icon <span class="grad">counts down.</span></h1>
-      <p>Roicon puts a countdown on your Roblox game icon before an update, then switches to the new icon right on time. On autopilot.</p>
-      <div class="btns">
-        <a class="btn primary" href="https://github.com/jakedev2/Roicon/releases/latest/download/Roicon.exe" download>Download for Windows</a>
-        <a class="btn" href="https://github.com/jakedev2/Roicon">View source</a>
-      </div>
-      <div class="note">Installs in one click, adds a desktop shortcut and updates itself. Free and open source. Not affiliated with Roblox Corporation.</div>
-    </header>
-
-    <div class="steps">
-      <div class="card"><div class="n">1</div><h3>Connect Roblox</h3><p>Sign in with Roblox and pick the account or group that owns your game.</p></div>
-      <div class="card"><div class="n">2</div><h3>Plan the update</h3><p>Choose your current icon, your new icon and when the update drops.</p></div>
-      <div class="card"><div class="n">3</div><h3>Approved early</h3><p>Every countdown icon is uploaded ahead of time so it passes moderation before it's needed.</p></div>
-      <div class="card"><div class="n">4</div><h3>It goes live</h3><p>Roicon switches the icon on each of your places at every step, then puts up the new one.</p></div>
+      <a class="btn primary" href="https://github.com/jakedev2/Roicon/releases/latest/download/Roicon.exe" download>Download</a>
     </div>
+  </nav>
 
-    <section class="section">
-      <h2>See it in action</h2>
-      <p>Sign in with Roblox, add a game, pick the new icon and the time. Roicon uploads the countdown icons early so they pass moderation.</p>
-      <video src="demo.mp4" controls playsinline preload="metadata" style="width:100%;border-radius:16px;box-shadow:inset 0 0 0 1px var(--line);background:#000"></video>
-    </section>
+  <header class="hero wrap">
+    <div class="logo-wrap reveal"><img src="roicon-logo.png" alt="Roicon logo"></div>
+    <div class="pill reveal" style="--d:.08s"><b id="ver">New</b> Smoother UI, new look, and it updates itself</div>
+    <h1 class="reveal" style="--d:.14s">Your icon<br><span class="grad-text">counts down.</span></h1>
+    <p class="lead reveal" style="--d:.2s">Roicon puts a countdown on your Roblox game icon before an update, then switches to the new icon right on time. On autopilot.</p>
+    <div class="btns reveal" style="--d:.26s">
+      <a class="btn primary" href="https://github.com/jakedev2/Roicon/releases/latest/download/Roicon.exe" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
+        Download for Windows
+      </a>
+      <a class="btn" href="#how">See how it works</a>
+    </div>
+    <div class="note reveal" style="--d:.32s">Free and open source · Windows 10/11 · Installs in one click and updates itself</div>
 
-    <section class="section">
-      <h2>Make your own timers</h2>
-      <p>Use the built-in hourglass countdowns or drop in your own transparent 512×512 overlays. They're placed on top of your current icon at each step.</p>
-      <div class="timeline"><span>12h</span><span>6h</span><span>3h</span><span>1h</span><span class="live">Live</span></div>
-    </section>
+    <div class="shot" id="shot">
+      <div class="frame"><img src="img/app.jpg" alt="The Roicon app counting down to an update" width="1202" height="771"></div>
+    </div>
+  </header>
 
-    <section class="section">
-      <h2>What Roicon asks Roblox for</h2>
-      <p>Roicon uses Roblox's official sign-in (OAuth 2.0). You choose which accounts it can use, and you can disconnect at any time.</p>
+  <section id="how" class="wrap">
+    <div class="countdown">
+      <div class="stage reveal">
+        <div class="icon-stack" id="stack">
+          <div class="badge" id="badge">12 hours</div>
+          <img src="img/cd-12h.jpg" alt="Icon with 12 hours countdown" class="on">
+          <img src="img/cd-6h.jpg" alt="Icon with 6 hours countdown">
+          <img src="img/cd-3h.jpg" alt="Icon with 3 hours countdown">
+          <img src="img/cd-1h.jpg" alt="Icon with 1 hour countdown">
+          <img src="img/cd-new.jpg" alt="The new icon, live">
+        </div>
+      </div>
+      <div class="reveal" style="--d:.1s">
+        <div class="eyebrow">The countdown</div>
+        <h2>Hype the update, right on the icon.</h2>
+        <p class="sub">Players see the countdown in their feed, then the new icon appears the moment your update goes live. Every icon is uploaded early, so Roblox has approved it before it's needed.</p>
+        <ul class="steps-line" id="line">
+          <div class="fill" id="fill"></div>
+          <li data-i="0"><div class="dot">12</div><div><b>12 hours to go</b><br><span>The countdown starts</span></div></li>
+          <li data-i="1"><div class="dot">6</div><div><b>6 hours</b><br><span>Halfway there</span></div></li>
+          <li data-i="2"><div class="dot">3</div><div><b>3 hours</b><br><span>Players start checking back</span></div></li>
+          <li data-i="3"><div class="dot">1</div><div><b>1 hour</b><br><span>Final stretch</span></div></li>
+          <li data-i="4"><div class="dot">✓</div><div><b>Update is live</b><br><span>Your new icon goes up everywhere</span></div></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap center">
+    <div class="eyebrow reveal">Four steps</div>
+    <h2 class="reveal" style="--d:.05s">Set it up once. Roicon does the rest.</h2>
+    <div class="grid four">
+      <div class="card reveal" style="--d:.05s"><div class="num">01</div><h3>Connect Roblox</h3><p>Sign in with Roblox and pick the account or group that owns your game.</p></div>
+      <div class="card reveal" style="--d:.12s"><div class="num">02</div><h3>Plan the update</h3><p>Choose your current icon, your new icon and when the update drops.</p></div>
+      <div class="card reveal" style="--d:.19s"><div class="num">03</div><h3>Approved early</h3><p>Each countdown icon is uploaded ahead of time so it passes moderation first.</p></div>
+      <div class="card reveal" style="--d:.26s"><div class="num">04</div><h3>It goes live</h3><p>The icon switches on every place at each step, then the new one goes up.</p></div>
+    </div>
+  </section>
+
+  <section id="features" class="wrap center">
+    <div class="eyebrow reveal">Features</div>
+    <h2 class="reveal" style="--d:.05s">Made for update day.</h2>
+    <p class="sub reveal" style="--d:.1s">Everything runs on your PC and talks only to Roblox.</p>
+    <div class="grid three" style="text-align:left">
+      <div class="card reveal" style="--d:.05s">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12M6 22h12M7 2c0 6 10 6 10 10S7 16 7 22M17 2c0 6-10 6-10 10s10 4 10 10"/></svg></div>
+        <h3>Hourglass countdowns</h3><p>Ready-made 12, 6, 3 and 1 hour overlays, or drop in your own PNGs for any timer.</p>
+      </div>
+      <div class="card reveal" style="--d:.12s">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h3>Approved before it's needed</h3><p>Icons upload early and Roicon tracks moderation, so nothing goes up unapproved.</p>
+      </div>
+      <div class="card reveal" style="--d:.19s">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></div>
+        <h3>Every place at once</h3><p>Lobbies, arenas and sub-places all switch together. Turn places on or off per game.</p>
+      </div>
+      <div class="card reveal" style="--d:.05s">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M11 18h2"/></svg></div>
+        <h3>Watch from your phone</h3><p>Scan a QR code to follow the countdown live over your home Wi-Fi.</p>
+      </div>
+      <div class="card reveal" style="--d:.12s">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></div>
+        <h3>Always up to date</h3><p>Installs in one click with a desktop shortcut, and updates itself in the background.</p>
+      </div>
+      <div class="card reveal" style="--d:.19s">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+        <h3>Private by design</h3><p>No servers, no tracking. Sign-in is stored in Windows Credential Manager on your PC.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap center">
+    <div class="eyebrow reveal">Demo</div>
+    <h2 class="reveal" style="--d:.05s">See it in action.</h2>
+    <p class="sub reveal" style="--d:.1s">Sign in with Roblox, add a game, pick the new icon and the time. That's it.</p>
+    <div class="video reveal" style="--d:.15s"><video src="demo.mp4" controls playsinline preload="metadata"></video></div>
+  </section>
+
+  <section class="wrap center">
+    <div class="eyebrow reveal">Permissions</div>
+    <h2 class="reveal" style="--d:.05s">What Roicon asks Roblox for.</h2>
+    <p class="sub reveal" style="--d:.1s">Roicon uses Roblox's official sign-in (OAuth 2.0). You choose which accounts it can use, and you can disconnect any time.</p>
+    <div class="table reveal" style="--d:.15s; text-align:left">
       <table>
         <tr><th>Permission</th><th>Why</th><th>Risk level</th></tr>
-        <tr><td>Read profile</td><td>Show your username and avatar in the app</td><td><span class="dot low"></span>Low</td></tr>
-        <tr><td>Read assets</td><td>Check that your countdown icons passed moderation</td><td><span class="dot low"></span>Low</td></tr>
-        <tr><td>Write assets</td><td>Upload the countdown icons and set them as your place icons</td><td><span class="dot med"></span>Medium</td></tr>
+        <tr><td>Read profile</td><td>Show your username and avatar in the app</td><td><span class="risk low">Low</span></td></tr>
+        <tr><td>Read assets</td><td>Check that your countdown icons passed moderation</td><td><span class="risk low">Low</span></td></tr>
+        <tr><td>Write assets</td><td>Upload the countdown icons and set them as your place icons</td><td><span class="risk med">Medium</span></td></tr>
       </table>
-    </section>
+    </div>
+  </section>
 
-    <section class="section">
-      <h2>Your phone takes a look</h2>
-      <p>Scan a QR code to follow the countdown live on your phone over your home Wi-Fi. Nothing goes through our servers. Roicon doesn't have any.</p>
-    </section>
+  <div class="wrap">
+    <div class="cta reveal">
+      <img src="roicon-logo.png" alt="">
+      <h2>Your next update deserves a countdown.</h2>
+      <p>Free, open source and ready in under a minute.</p>
+      <a class="btn primary" href="https://github.com/jakedev2/Roicon/releases/latest/download/Roicon.exe" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
+        Download for Windows
+      </a>
+    </div>
+  </div>
 
-    <footer>
+  <footer>
+    <div class="wrap">
       <div class="row">
-        <span>© 2026 Roicon</span>
+        <a class="brand" href="./"><img src="roicon-logo.png" alt="">Roicon</a>
         <span class="grow"></span>
         <a href="privacy.html">Privacy Policy</a>
         <a href="terms.html">Terms of Service</a>
         <a href="https://github.com/jakedev2/Roicon/issues">Contact</a>
       </div>
-      <p>Roblox is a trademark of Roblox Corporation. Roicon is an independent tool and is not affiliated with, endorsed by or sponsored by Roblox Corporation.</p>
-    </footer>
-  </div>
+      <p>© 2026 Roicon. Roblox is a trademark of Roblox Corporation. Roicon is an independent tool and is not affiliated with, endorsed by or sponsored by Roblox Corporation.</p>
+    </div>
+  </footer>
+
+  <script src="site.js"></script>
 </body>
 </html>

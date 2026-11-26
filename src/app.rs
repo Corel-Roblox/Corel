@@ -81,6 +81,9 @@ pub struct App {
     modal_open: bool,
 }
 
+/// Linear filtering with mipmaps, so big icons shrink smoothly instead of looking jagged.
+const SMOOTH_TEX: egui::TextureOptions = egui::TextureOptions::LINEAR.with_mipmap_mode(Some(egui::TextureFilter::Linear));
+
 // ---------------- time formatting ----------------
 
 fn local(ms: i64) -> chrono::DateTime<Local> {
@@ -156,7 +159,7 @@ impl App {
         let relay = Relay::new(store.clone());
         let tray = Self::make_tray(store.clone());
         let li = images::app_icon(256);
-        let logo = cc.egui_ctx.load_texture("roicon-logo", egui::ColorImage::from_rgba_unmultiplied([256, 256], li.as_raw()), egui::TextureOptions::LINEAR);
+        let logo = cc.egui_ctx.load_texture("roicon-logo", egui::ColorImage::from_rgba_unmultiplied([256, 256], li.as_raw()), SMOOTH_TEX);
         ui::set_logo(logo.id());
         Self {
             store,
@@ -236,7 +239,7 @@ impl App {
         }
         let bytes = self.store.read_image(name)?;
         let img = images::decode(&bytes).ok()?;
-        let t = ctx.load_texture(name, egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()), egui::TextureOptions::LINEAR);
+        let t = ctx.load_texture(name, egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()), SMOOTH_TEX);
         self.tex.insert(name.to_owned(), t.clone());
         Some(t)
     }
@@ -249,7 +252,7 @@ impl App {
         let b = base.and_then(|n| self.store.read_image(n));
         let o = t.overlay.as_ref().and_then(|n| self.store.read_image(n));
         let img = images::composite(b.as_deref(), o.as_deref(), &t.label);
-        let h = ctx.load_texture(&key, egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()), egui::TextureOptions::LINEAR);
+        let h = ctx.load_texture(&key, egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()), SMOOTH_TEX);
         self.comp.insert(key, h.clone());
         h
     }
@@ -637,8 +640,8 @@ impl App {
                         p.rect_filled(rect, 12, Color32::from_white_alpha((9.0 * hv) as u8));
                     }
                     // items glide in when the app opens
-                    let enter = ui::smooth(ctx, Id::new(("side-in", ei)), 1.0, 9.0 - (ei as f32).min(6.0));
-                    let nudge = 3.0 * hv + (1.0 - enter) * -14.0;
+                    let _ = ei;
+                    let nudge = 3.0 * hv;
                     let tr = Rect::from_min_size(rect.min + vec2(9.0 + nudge, 9.0), Vec2::splat(34.0));
                     let icon = e.update.as_ref().filter(|u| u.status.active()).and_then(|u| u.live_step().map(|s| s.image.clone())).or(e.current_icon.clone());
                     match icon.and_then(|n| self.tex(ctx, &n)) {
@@ -775,7 +778,7 @@ impl App {
                 ui::page_changed(ctx);
                 let _ = first;
             }
-            let t = ui::appear(ctx, 0.0);
+            let t = 0.25 + 0.75 * ui::appear(ctx, 0.0);
             let Some(e) = sel.cloned() else {
                 ui.multiply_opacity(t);
                 self.welcome(ui, data);
@@ -783,7 +786,7 @@ impl App {
             };
             self.header(ui, ctx, &e, now);
             let avail = ui.available_rect_before_wrap();
-            let inner = Rect::from_min_max(avail.min + vec2(28.0, 0.0), avail.max - vec2(28.0, 0.0)).translate(vec2(0.0, (1.0 - t) * 22.0));
+            let inner = Rect::from_min_max(avail.min + vec2(28.0, 0.0), avail.max - vec2(28.0, 0.0));
             ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(Layout::top_down(Align::Min)), |ui| {
                 ui.multiply_opacity(t);
                 match self.tab {
@@ -830,7 +833,9 @@ impl App {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 2.0;
                             let pill_idx = ui.painter().add(egui::Shape::Noop);
+                            let text_idx: Vec<_> = (0..3).map(|_| ui.painter().add(egui::Shape::Noop)).collect();
                             let mut act: Option<Rect> = None;
+                            let mut tabs: Vec<(Rect, &str, f32)> = Vec::new();
                             // right-to-left parent: add in reverse so they read Update, Timers, Settings
                             for (t, name) in [(Tab::Settings, "Settings"), (Tab::Timers, "Timers"), (Tab::Update, "Update")] {
                                 let on = self.tab == t;
@@ -839,26 +844,34 @@ impl App {
                                 if on {
                                     act = Some(r);
                                 }
-                                let hv = ui::hover_amt(ctx, resp.id, resp.hovered());
-                                let c = if on { Color32::WHITE } else { MUTED.lerp_to_gamma(TEXT, hv) };
-                                if !on && hv > 0.01 {
+                                let hv = if on { 0.0 } else { ui::hover_amt(ctx, resp.id, resp.hovered()) };
+                                if hv > 0.01 {
                                     ui.painter().rect_filled(r, 8, Color32::from_white_alpha((8.0 * hv) as u8));
                                 }
-                                ui.painter().text(r.center(), Align2::CENTER_CENTER, name, ui::semi(12.8), c);
+                                tabs.push((r, name, hv));
                                 if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                                     self.tab = t;
                                 }
                             }
-                            if let Some(ar) = act {
-                                let x = ui::smooth(ctx, Id::new("tab-pill-x"), ar.left(), 17.0);
-                                let w = ui::smooth(ctx, Id::new("tab-pill-w"), ar.width(), 17.0);
-                                let pr = Rect::from_min_size(pos2(x, ar.top()), vec2(w, ar.height()));
+                            let pill = act.map(|ar| {
+                                let x = ui::smooth(ctx, Id::new("tab-pill-x"), ar.left(), 22.0);
+                                let w = ui::smooth(ctx, Id::new("tab-pill-w"), ar.width(), 22.0);
+                                Rect::from_min_size(pos2(x, ar.top()), vec2(w, ar.height()))
+                            });
+                            for (k, (r, name, hv)) in tabs.iter().enumerate() {
+                                // how much of this tab the moving pill covers
+                                let cover = pill.map(|p| ((p.right().min(r.right()) - p.left().max(r.left())) / r.width()).clamp(0.0, 1.0)).unwrap_or(0.0);
+                                let c = MUTED.lerp_to_gamma(TEXT, *hv).lerp_to_gamma(Color32::WHITE, cover);
+                                let g = ui.painter().layout_no_wrap(name.to_string(), ui::semi(12.8), c);
+                                let pos = r.center() - g.size() / 2.0;
+                                ui.painter().set(text_idx[k], egui::Shape::galley(pos, g, c));
+                            }
+                            if let Some(pr) = pill {
                                 ui.painter().set(
                                     pill_idx,
                                     egui::Shape::Vec(vec![
-                                        ui::brand_rrect(pr.expand(2.0).translate(vec2(0.0, 3.0)), 10.0, Color32::from_rgba_unmultiplied(128, 100, 255, 46), Color32::from_rgba_unmultiplied(184, 82, 240, 46)),
                                         ui::brand_rrect(pr, 8.0, ui::GRAD_A, ui::GRAD_B),
-                                        ui::grad_rrect(pr, 8.0, |_, ty| Color32::from_white_alpha(if ty < 0.5 { (24.0 * (1.0 - ty * 2.0)) as u8 } else { 0 })),
+                                        ui::grad_rrect(pr, 8.0, |_, ty| Color32::from_white_alpha(if ty < 0.5 { (22.0 * (1.0 - ty * 2.0)) as u8 } else { 0 })),
                                     ]),
                                 );
                             }
@@ -1165,7 +1178,7 @@ impl App {
                         let fade = ui::appear(ctx, 0.1 + 0.05 * si as f32);
                         ui.scope(|ui| {
                         ui.multiply_opacity(fade);
-                        Frame::NONE.inner_margin(Margin { left: 18 + ((1.0 - fade) * 14.0) as i8, right: 18, top: 7, bottom: 7 }).show(ui, |ui| {
+                        Frame::NONE.inner_margin(Margin::symmetric(18, 7)).show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 match me.tex(ctx, &s.image) {
                                     Some(t) => {
@@ -2193,7 +2206,7 @@ fn hgrad_rounded(r: Rect, a: Color32, b: Color32, rad: f32) -> egui::Shape {
 fn tile(ui: &mut Ui, tex: Option<&TextureHandle>, label: &str, time: &str, final_: bool, past: bool, fade: f32) {
     let (slot, resp) = ui.allocate_exact_size(vec2(116.0, 150.0), Sense::hover());
     let hv = ui::hover_amt(ui.ctx(), resp.id, resp.hovered());
-    let rect = slot.translate(vec2(0.0, -4.0 * hv + (1.0 - fade) * 16.0));
+    let rect = slot.translate(vec2(0.0, -4.0 * hv));
     let p = ui.painter().clone();
     let p = { let mut p = p; p.multiply_opacity(fade); p };
     let op: f32 = if past { 0.4 } else { 1.0 };

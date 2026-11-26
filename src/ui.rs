@@ -269,8 +269,8 @@ pub fn button_w(ui: &mut Ui, kind: Btn, icon: Option<Icon>, text: &str, enabled:
     match kind {
         Btn::Primary => {
             if enabled {
-                let ga = (34.0 + 40.0 * hv) as u8;
-                p.add(brand_rrect(r.expand(3.0 + 3.0 * hv).translate(vec2(0.0, 4.0 + 2.0 * hv)), 13.0, Color32::from_rgba_unmultiplied(128, 100, 255, ga), Color32::from_rgba_unmultiplied(200, 80, 220, ga)));
+                let ga = (18.0 + 26.0 * hv) as u8;
+                p.add(brand_rrect(r.expand(1.5 + 2.5 * hv).translate(vec2(0.0, 1.5)), 12.0, Color32::from_rgba_unmultiplied(128, 100, 255, ga), Color32::from_rgba_unmultiplied(200, 80, 220, ga)));
                 let a = GRAD_A.lerp_to_gamma(Color32::from_rgb(150, 126, 255), hv);
                 let b = GRAD_B.lerp_to_gamma(Color32::from_rgb(214, 96, 226), hv);
                 p.add(brand_rrect(r, 10.0, a, b));
