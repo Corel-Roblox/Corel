@@ -3,6 +3,7 @@
 mod app;
 mod images;
 mod install;
+mod logo;
 mod oauth;
 mod relay;
 mod roblox;
@@ -84,6 +85,14 @@ fn main() -> eframe::Result {
         let _ = std::fs::create_dir_all(&dir);
         let _ = images::app_icon(1024).save(dir.join("roicon-logo.png"));
         let _ = image::imageops::resize(&images::app_icon(1024), 256, 256, image::imageops::FilterType::Lanczos3).save(dir.join("roicon.ico"));
+        return Ok(());
+    }
+    if let Some(i) = args.iter().position(|a| a == "--logo-concepts") {
+        let dir = std::path::PathBuf::from(args.get(i + 1).cloned().unwrap_or_else(|| ".".into()));
+        let _ = std::fs::create_dir_all(&dir);
+        for (n, f) in [("a", logo::concept_tile as fn(u32) -> tiny_skia::Pixmap), ("b", logo::concept_hourglass), ("c", logo::concept_tile_hourglass)] {
+            let _ = images::pixmap_to_rgba(&f(1024)).save(dir.join(format!("logo-{n}.png")));
+        }
         return Ok(());
     }
     // `roicon.exe --preview-overlay <icon.png> <out.png> "5 Hours"` renders a countdown icon.

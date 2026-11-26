@@ -343,61 +343,14 @@ pub fn pixmap_to_rgba(pm: &Pixmap) -> image::RgbaImage {
     image::RgbaImage::from_raw(pm.width(), pm.height(), data).unwrap()
 }
 
-/// The app icon (purple rounded square with a clock), at any size.
+/// The app icon (glowing hourglass on deep violet), at any size.
 pub fn app_icon(size: u32) -> image::RgbaImage {
-    let s = size as f32;
-    let mut pm = Pixmap::new(size, size).unwrap();
-    let r = tiny_skia::Rect::from_xywh(0.0, 0.0, s, s).unwrap();
-    let grad = tiny_skia::LinearGradient::new(
-        tiny_skia::Point::from_xy(0.0, 0.0),
-        tiny_skia::Point::from_xy(s, s),
-        vec![tiny_skia::GradientStop::new(0.0, Color::from_rgba8(125, 109, 255, 255)), tiny_skia::GradientStop::new(1.0, Color::from_rgba8(90, 75, 232, 255))],
-        tiny_skia::SpreadMode::Pad,
-        Transform::identity(),
-    )
-    .unwrap();
-    let mut p = Paint::default();
-    p.shader = grad;
-    p.anti_alias = true;
-    let bg = rounded_rect(r, s * 0.27);
-    pm.fill_path(&bg, &p, FillRule::Winding, Transform::identity(), None);
-    // soft top highlight
-    let hl = tiny_skia::LinearGradient::new(
-        tiny_skia::Point::from_xy(0.0, 0.0),
-        tiny_skia::Point::from_xy(0.0, s * 0.6),
-        vec![tiny_skia::GradientStop::new(0.0, Color::from_rgba8(255, 255, 255, 46)), tiny_skia::GradientStop::new(1.0, Color::from_rgba8(255, 255, 255, 0))],
-        tiny_skia::SpreadMode::Pad,
-        Transform::identity(),
-    )
-    .unwrap();
-    let mut hp = Paint::default();
-    hp.shader = hl;
-    hp.anti_alias = true;
-    pm.fill_path(&bg, &hp, FillRule::Winding, Transform::identity(), None);
-
-    // countdown ring: faint full track + bright arc that is "counting down"
-    let (cx, cy, rad) = (s / 2.0, s / 2.0, s * 0.335);
-    let w = (s * 0.075).max(1.6);
-    let st = Stroke { width: w, line_cap: LineCap::Round, line_join: LineJoin::Round, ..Default::default() };
-    let mut track = PathBuilder::new();
-    track.push_circle(cx, cy, rad);
-    pm.stroke_path(&track.finish().unwrap(), &paint(Color::from_rgba8(255, 255, 255, 60)), &st, Transform::identity(), None);
-    let mut arc = PathBuilder::new();
-    let (start, sweep) = (-std::f32::consts::FRAC_PI_2, std::f32::consts::TAU * 0.78);
-    for i in 0..=96 {
-        let a = start + sweep * i as f32 / 96.0;
-        let (x, y) = (cx + rad * a.cos(), cy + rad * a.sin());
-        if i == 0 { arc.move_to(x, y) } else { arc.line_to(x, y) }
+    // Draw large, then scale down, so small sizes stay crisp.
+    let big = size.max(256) * 2;
+    let img = pixmap_to_rgba(&crate::logo::concept_hourglass(big));
+    if big == size {
+        img
+    } else {
+        image::imageops::resize(&img, size, size, FilterType::Lanczos3)
     }
-    pm.stroke_path(&arc.finish().unwrap(), &paint(Color::WHITE), &st, Transform::identity(), None);
-
-    // the "game icon" tile in the middle, with a bold R
-    let half = s * 0.175;
-    let tile = rounded_rect(tiny_skia::Rect::from_xywh(cx - half, cy - half, half * 2.0, half * 2.0).unwrap(), s * 0.075);
-    pm.fill_path(&tile, &paint(Color::WHITE), FillRule::Winding, Transform::identity(), None);
-    let px = s * 0.27;
-    if let Some((path, _)) = text_path("R", px, cx + s * 0.004, cy + px * 0.36) {
-        pm.fill_path(&path, &paint(Color::from_rgba8(98, 82, 242, 255)), FillRule::Winding, Transform::identity(), None);
-    }
-    pixmap_to_rgba(&pm)
 }

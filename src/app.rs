@@ -75,6 +75,10 @@ pub struct App {
     quitting: bool,
     _tray: Option<tray_icon::TrayIcon>,
     signin: Option<Arc<AtomicBool>>,
+    _logo: TextureHandle,
+    page_key: String,
+    modal_t0: f64,
+    modal_open: bool,
 }
 
 // ---------------- time formatting ----------------
@@ -151,6 +155,9 @@ impl App {
         let (tx, rx) = channel();
         let relay = Relay::new(store.clone());
         let tray = Self::make_tray(store.clone());
+        let li = images::app_icon(256);
+        let logo = cc.egui_ctx.load_texture("roicon-logo", egui::ColorImage::from_rgba_unmultiplied([256, 256], li.as_raw()), egui::TextureOptions::LINEAR);
+        ui::set_logo(logo.id());
         Self {
             store,
             sched,
@@ -169,6 +176,10 @@ impl App {
             quitting: false,
             _tray: tray,
             signin: None,
+            _logo: logo,
+            page_key: String::new(),
+            modal_t0: 0.0,
+            modal_open: false,
         }
     }
 
@@ -612,23 +623,33 @@ impl App {
                     });
                 }
                 let sel = data.selected.clone().or_else(|| data.experiences.first().map(|e| e.id.clone()));
-                for e in &data.experiences {
+                let pill_idx = ui.painter().add(egui::Shape::Noop);
+                let mut active_rect: Option<Rect> = None;
+                for (ei, e) in data.experiences.iter().enumerate() {
                     let active = sel.as_deref() == Some(&e.id);
                     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 52.0), Sense::click());
                     let p = ui.painter().clone();
                     if active {
-                        p.rect(rect, 10, PANEL3, Stroke::new(1.0, LINE2), StrokeKind::Inside);
-                    } else if resp.hovered() {
-                        p.rect_filled(rect, 10, Color32::from_white_alpha(8));
+                        active_rect = Some(rect);
                     }
-                    let tr = Rect::from_min_size(rect.min + vec2(9.0, 9.0), Vec2::splat(34.0));
+                    let hv = ui::hover_amt(ctx, resp.id, resp.hovered() && !active);
+                    if hv > 0.01 {
+                        p.rect_filled(rect, 12, Color32::from_white_alpha((9.0 * hv) as u8));
+                    }
+                    // items glide in when the app opens
+                    let enter = ui::smooth(ctx, Id::new(("side-in", ei)), 1.0, 9.0 - (ei as f32).min(6.0));
+                    let nudge = 3.0 * hv + (1.0 - enter) * -14.0;
+                    let tr = Rect::from_min_size(rect.min + vec2(9.0 + nudge, 9.0), Vec2::splat(34.0));
                     let icon = e.update.as_ref().filter(|u| u.status.active()).and_then(|u| u.live_step().map(|s| s.image.clone())).or(e.current_icon.clone());
                     match icon.and_then(|n| self.tex(ctx, &n)) {
                         Some(t) => {
-                            egui::Image::new(&t).corner_radius(8).paint_at(ui, tr);
+                            if active {
+                                ui::glow(&p, tr.center(), 30.0, Color32::from_rgba_unmultiplied(160, 120, 255, 40));
+                            }
+                            egui::Image::new(&t).corner_radius(9).paint_at(ui, tr);
                         }
                         None => {
-                            p.rect_filled(tr, 8, PANEL3);
+                            p.rect_filled(tr, 9, PANEL3);
                         }
                     }
                     let tx = tr.right() + 10.0;
@@ -644,6 +665,18 @@ impl App {
                         self.tab = Tab::Update;
                     }
                 }
+                if let Some(ar) = active_rect {
+                    let y = ui::smooth(ctx, Id::new("side-pill-y"), ar.top(), 15.0);
+                    let pr = Rect::from_min_size(pos2(ar.left(), y), ar.size());
+                    ui.painter().set(
+                        pill_idx,
+                        egui::Shape::Vec(vec![
+                            ui::brand_rrect(pr, 12.0, Color32::from_rgba_unmultiplied(128, 100, 255, 52), Color32::from_rgba_unmultiplied(184, 82, 240, 12)),
+                            egui::Shape::rect_stroke(pr, 12, Stroke::new(1.0, Color32::from_rgba_unmultiplied(160, 130, 255, 64)), StrokeKind::Inside),
+                            ui::grad_rrect(Rect::from_min_size(pos2(pr.left() + 1.5, pr.top() + 13.0), vec2(3.0, pr.height() - 26.0)), 1.5, |_, ty| ui::SAND.lerp_to_gamma(ui::PINK, ty)),
+                        ]),
+                    );
+                }
             });
             {
                 let rem = ui.available_height() - 98.0;
@@ -653,8 +686,9 @@ impl App {
                 // account row
                 let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 50.0), Sense::click());
                 let p = ui.painter();
-                if resp.hovered() {
-                    p.rect_filled(rect, 10, Color32::from_white_alpha(7));
+                let hv = ui::hover_amt(ctx, resp.id, resp.hovered());
+                if hv > 0.01 {
+                    p.rect_filled(rect, 12, Color32::from_white_alpha((9.0 * hv) as u8));
                 }
                 p.line_segment([rect.left_top() - vec2(0.0, 2.0), rect.right_top() - vec2(0.0, 2.0)], Stroke::new(1.0, LINE));
                 let c = pos2(rect.left() + 23.0, rect.center().y);
@@ -731,14 +765,28 @@ impl App {
     fn central(&mut self, ctx: &Context, data: &Data, now: i64) {
         egui::CentralPanel::default().frame(Frame::NONE).show(ctx, |ui| {
             let sel = data.selected.as_ref().and_then(|id| data.exp(id)).or(data.experiences.first());
+            let key = match &sel {
+                Some(e) => format!("{}|{}|{}", e.id, self.tab as u8, e.update.is_some()),
+                None => "welcome".into(),
+            };
+            if key != self.page_key {
+                let first = self.page_key.is_empty();
+                self.page_key = key;
+                ui::page_changed(ctx);
+                let _ = first;
+            }
+            let t = ui::appear(ctx, 0.0);
             let Some(e) = sel.cloned() else {
+                ui.multiply_opacity(t);
                 self.welcome(ui, data);
                 return;
             };
             self.header(ui, ctx, &e, now);
             let avail = ui.available_rect_before_wrap();
-            let inner = Rect::from_min_max(avail.min + vec2(28.0, 0.0), avail.max - vec2(28.0, 0.0));
-            ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(Layout::top_down(Align::Min)), |ui| match self.tab {
+            let inner = Rect::from_min_max(avail.min + vec2(28.0, 0.0), avail.max - vec2(28.0, 0.0)).translate(vec2(0.0, (1.0 - t) * 22.0));
+            ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(Layout::top_down(Align::Min)), |ui| {
+                ui.multiply_opacity(t);
+                match self.tab {
                 Tab::Update => {
                     if e.update.is_some() {
                         self.launch_view(ui, ctx, &e, now)
@@ -748,6 +796,7 @@ impl App {
                 }
                 Tab::Timers => self.timers_view(ui, ctx, &e),
                 Tab::Settings => self.settings_view(ui, ctx, &e),
+                }
             });
         });
     }
@@ -777,22 +826,41 @@ impl App {
                     });
                 });
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    Frame::new().fill(PANEL).stroke(Stroke::new(1.0, LINE)).corner_radius(11).inner_margin(Margin::same(4)).show(ui, |ui| {
+                    Frame::new().fill(Color32::from_rgba_unmultiplied(20, 20, 30, 220)).stroke(Stroke::new(1.0, Color32::from_white_alpha(14))).corner_radius(12).inner_margin(Margin::same(4)).show(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 2.0;
+                            let pill_idx = ui.painter().add(egui::Shape::Noop);
+                            let mut act: Option<Rect> = None;
                             // right-to-left parent: add in reverse so they read Update, Timers, Settings
                             for (t, name) in [(Tab::Settings, "Settings"), (Tab::Timers, "Timers"), (Tab::Update, "Update")] {
                                 let on = self.tab == t;
                                 let g = ui.painter().layout_no_wrap(name.into(), ui::semi(12.8), TEXT);
-                                let (r, resp) = ui.allocate_exact_size(vec2(g.size().x + 28.0, 30.0), Sense::click());
+                                let (r, resp) = ui.allocate_exact_size(vec2(g.size().x + 30.0, 30.0), Sense::click());
                                 if on {
-                                    ui.painter().rect(r, 8, PANEL3, Stroke::new(1.0, LINE2), StrokeKind::Inside);
+                                    act = Some(r);
                                 }
-                                let c = if on || resp.hovered() { TEXT } else { MUTED };
+                                let hv = ui::hover_amt(ctx, resp.id, resp.hovered());
+                                let c = if on { Color32::WHITE } else { MUTED.lerp_to_gamma(TEXT, hv) };
+                                if !on && hv > 0.01 {
+                                    ui.painter().rect_filled(r, 8, Color32::from_white_alpha((8.0 * hv) as u8));
+                                }
                                 ui.painter().text(r.center(), Align2::CENTER_CENTER, name, ui::semi(12.8), c);
                                 if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
                                     self.tab = t;
                                 }
+                            }
+                            if let Some(ar) = act {
+                                let x = ui::smooth(ctx, Id::new("tab-pill-x"), ar.left(), 17.0);
+                                let w = ui::smooth(ctx, Id::new("tab-pill-w"), ar.width(), 17.0);
+                                let pr = Rect::from_min_size(pos2(x, ar.top()), vec2(w, ar.height()));
+                                ui.painter().set(
+                                    pill_idx,
+                                    egui::Shape::Vec(vec![
+                                        ui::brand_rrect(pr.expand(2.0).translate(vec2(0.0, 3.0)), 10.0, Color32::from_rgba_unmultiplied(128, 100, 255, 46), Color32::from_rgba_unmultiplied(184, 82, 240, 46)),
+                                        ui::brand_rrect(pr, 8.0, ui::GRAD_A, ui::GRAD_B),
+                                        ui::grad_rrect(pr, 8.0, |_, ty| Color32::from_white_alpha(if ty < 0.5 { (24.0 * (1.0 - ty * 2.0)) as u8 } else { 0 })),
+                                    ]),
+                                );
                             }
                         });
                     });
@@ -907,14 +975,16 @@ impl App {
                         ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
                         let mut ts = e2.timers.clone();
                         ts.sort_by(|a, b| b.hours.partial_cmp(&a.hours).unwrap_or(std::cmp::Ordering::Equal));
-                        for t in &ts {
+                        for (ti, t) in ts.iter().enumerate() {
                             let tex = me.comp_tex(ctx, e2.current_icon.as_ref(), t);
                             let at = e2.planned_at.map(|p| p - (t.hours * 3_600_000.0) as i64);
                             let past = at.map(|a| a <= now).unwrap_or(false);
-                            tile(ui, Some(&tex), &t.tag(), &at.map(fmt_short).unwrap_or_else(|| "–".into()), false, past);
+                            let fade = ui::appear(ctx, 0.12 + 0.05 * ti as f32);
+                            tile(ui, Some(&tex), &t.tag(), &at.map(fmt_short).unwrap_or_else(|| "–".into()), false, past, fade);
                         }
                         let nt = e2.new_icon.as_ref().and_then(|n| me.tex(ctx, n));
-                        tile(ui, nt.as_ref(), "Update", &e2.planned_at.map(fmt_short).unwrap_or_else(|| "–".into()), true, false);
+                        let fade = ui::appear(ctx, 0.12 + 0.05 * ts.len() as f32);
+                        tile(ui, nt.as_ref(), "Update", &e2.planned_at.map(fmt_short).unwrap_or_else(|| "–".into()), true, false, fade);
                     });
                     if let Some(p) = e2.planned_at {
                         let skipped = e2.timers.iter().filter(|t| p - (t.hours * 3_600_000.0) as i64 <= now).count();
@@ -994,6 +1064,7 @@ impl App {
             });
         });
         let rect = resp.response.rect;
+        ui::hover_outline(ui, Id::new(("icon-card", format!("{which:?}"))), rect, 16);
         self.drop_rects.push((which, rect));
         if hovering {
             let over = ctx.input(|i| i.pointer.latest_pos()).map(|p| rect.contains(p)).unwrap_or(false);
@@ -1009,16 +1080,26 @@ impl App {
             "launch",
             |me, ui| {
                 // hero
-                let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 118.0), Sense::hover());
+                let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 124.0), Sense::hover());
                 let p = ui.painter().clone();
-                let (bg1, bg2, k_col, border) = match u.status {
-                    Status::Done => (Color32::from_rgb(18, 58, 44), Color32::from_rgb(18, 28, 27), GREEN, Color32::from_rgba_unmultiplied(61, 220, 151, 64)),
-                    Status::Cancelled => (Color32::from_rgb(40, 30, 36), Color32::from_rgb(22, 20, 26), MUTED, LINE2),
-                    _ => (Color32::from_rgb(42, 33, 96), Color32::from_rgb(26, 24, 52), Color32::from_rgb(167, 157, 255), Color32::from_rgba_unmultiplied(124, 108, 255, 72)),
+                let time = ctx.input(|i| i.time) as f32;
+                let (bg1, bg2, k_col, border, g1, g2) = match u.status {
+                    Status::Done => (Color32::from_rgb(18, 64, 48), Color32::from_rgb(16, 28, 28), GREEN, Color32::from_rgba_unmultiplied(61, 220, 151, 70), Color32::from_rgb(80, 230, 170), Color32::from_rgb(90, 200, 255)),
+                    Status::Cancelled => (Color32::from_rgb(40, 30, 36), Color32::from_rgb(22, 20, 26), MUTED, LINE2, Color32::from_rgb(90, 80, 100), Color32::from_rgb(70, 60, 80)),
+                    _ => (Color32::from_rgb(62, 36, 146), Color32::from_rgb(24, 16, 58), Color32::from_rgb(196, 178, 255), Color32::from_rgba_unmultiplied(160, 128, 255, 90), Color32::from_rgb(150, 120, 255), ui::PINK),
                 };
-                p.rect_filled(rect, 16, bg2);
-                p.add(hgrad_rounded(rect.shrink(0.5), bg1, bg2, 15.5));
-                ui::glow(&p.with_clip_rect(rect), rect.left_top() + vec2(120.0, -10.0), 260.0, Color32::from_rgba_unmultiplied(150, 135, 255, if u.status.active() { 46 } else { 14 }));
+                let lively = if u.status.active() { 1.0 } else { 0.45 };
+                // background: gradient plus two slowly drifting lights, all inside the rounded card
+                let c1 = rect.left_top() + vec2(rect.width() * (0.22 + 0.08 * (time * 0.45).sin()), rect.height() * (0.1 + 0.25 * (time * 0.6).cos()));
+                let c2 = rect.right_bottom() - vec2(rect.width() * (0.28 + 0.1 * (time * 0.35).cos()), rect.height() * (0.15 + 0.2 * (time * 0.5).sin()));
+                p.add(rrect_field(rect, 16.0, |pt| {
+                    let tx = ((pt.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                    let ty = ((pt.y - rect.top()) / rect.height()).clamp(0.0, 1.0);
+                    let base = bg1.lerp_to_gamma(bg2, (tx * 0.85 + ty * 0.3).min(1.0));
+                    let f1 = (1.0 - pt.distance(c1) / 280.0).max(0.0).powi(2) * 0.55 * lively;
+                    let f2 = (1.0 - pt.distance(c2) / 240.0).max(0.0).powi(2) * 0.35 * lively;
+                    base.lerp_to_gamma(g1, f1).lerp_to_gamma(g2, f2)
+                }));
                 p.rect_stroke(rect, 16, Stroke::new(1.0, border), StrokeKind::Inside);
                 let (k, big, meta) = match u.status {
                     Status::Done => ("UPDATE COMPLETE".to_string(), "New icon is live".to_string(), format!("{} · {}", fmt_when(u.finished_at.unwrap_or(u.at)), u.place_names.join(", "))),
@@ -1027,14 +1108,43 @@ impl App {
                     _ => ("UPDATE IN".into(), fmt_left(u.at - now), format!("{} · {}", fmt_when(u.at), u.place_names.join(", "))),
                 };
                 let x = rect.left() + 24.0;
-                p.text(pos2(x, rect.top() + 26.0), Align2::LEFT_CENTER, &k, ui::bold(11.0), k_col);
-                p.text(pos2(x - 1.0, rect.top() + 57.0), Align2::LEFT_CENTER, &big, ui::bold(32.0), TEXT);
-                p.text(pos2(x, rect.top() + 90.0), Align2::LEFT_CENTER, &meta, ui::reg(12.8), Color32::from_rgb(168, 163, 201));
+                let mut kx = x;
+                if u.status.active() {
+                    let pulse = (time * 2.0).fract();
+                    let dc = pos2(x + 4.0, rect.top() + 26.0);
+                    p.circle_filled(dc, 3.5 + 7.0 * pulse, k_col.gamma_multiply(0.35 * (1.0 - pulse)));
+                    p.circle_filled(dc, 3.5, k_col);
+                    kx += 15.0;
+                }
+                p.text(pos2(kx, rect.top() + 26.0), Align2::LEFT_CENTER, &k, ui::bold(11.0), k_col);
+                p.text(pos2(x - 1.0, rect.top() + 56.0), Align2::LEFT_CENTER, &big, ui::bold(32.0), TEXT);
+                p.text(pos2(x, rect.top() + 87.0), Align2::LEFT_CENTER, &meta, ui::reg(12.8), Color32::from_rgb(178, 172, 214));
+                // progress toward the update
+                let frac = match u.status {
+                    Status::Done => 1.0,
+                    Status::Cancelled => 0.0,
+                    _ => ((now - u.started_at) as f32 / (u.at - u.started_at).max(1) as f32).clamp(0.0, 1.0),
+                };
+                let frac = ui::smooth(ctx, Id::new(("hero-frac", &u.id)), frac, 4.0);
+                let bar = Rect::from_min_size(pos2(x, rect.bottom() - 16.0), vec2((rect.width() - 24.0 - 140.0).max(80.0), 4.0));
+                p.rect_filled(bar, 2, Color32::from_white_alpha(18));
+                if frac > 0.005 {
+                    let fill = Rect::from_min_size(bar.min, vec2((bar.width() * frac).max(4.0), bar.height()));
+                    let (a, b) = if u.status == Status::Done { (GREEN, Color32::from_rgb(90, 200, 255)) } else { (ui::SAND, ui::PINK) };
+                    p.add(ui::brand_rrect(fill, 2.0, a, b));
+                    if u.status.active() {
+                        ui::glow(&p, fill.right_center(), 12.0, b.gamma_multiply(0.7));
+                        p.circle_filled(fill.right_center(), 3.0, Color32::WHITE);
+                    }
+                }
                 let live = u.live_step().map(|s| (s.image.clone(), if u.status == Status::Done { "Live now" } else { "Live now" })).or(e2.current_icon.clone().map(|n| (n, "Current")));
                 if let Some((img, lab)) = live {
                     if let Some(t) = me.tex(ctx, &img) {
-                        let ir = Rect::from_min_size(pos2(rect.right() - 24.0 - 76.0, rect.top() + 14.0), Vec2::splat(76.0));
-                        egui::Image::new(&t).corner_radius(13).paint_at(ui, ir);
+                        let bob = (time * 1.4).sin() * 2.0 * lively;
+                        let ir = Rect::from_min_size(pos2(rect.right() - 24.0 - 76.0, rect.top() + 14.0 + bob), Vec2::splat(76.0));
+                        ui::glow(&p, ir.center() + vec2(0.0, 8.0), 70.0, Color32::from_rgba_unmultiplied(0, 0, 0, 70));
+                        egui::Image::new(&t).corner_radius(14).paint_at(ui, ir);
+                        p.rect_stroke(ir, 14, Stroke::new(1.0, Color32::from_white_alpha(30)), StrokeKind::Inside);
                         p.text(pos2(ir.center().x, ir.bottom() + 12.0), Align2::CENTER_CENTER, lab, ui::reg(11.5), Color32::from_rgb(168, 163, 201));
                     }
                 }
@@ -1051,8 +1161,11 @@ impl App {
                 });
                 ui::card().inner_margin(Margin::symmetric(0, 6)).show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    for s in u.visible() {
-                        Frame::NONE.inner_margin(Margin::symmetric(18, 7)).show(ui, |ui| {
+                    for (si, s) in u.visible().enumerate() {
+                        let fade = ui::appear(ctx, 0.1 + 0.05 * si as f32);
+                        ui.scope(|ui| {
+                        ui.multiply_opacity(fade);
+                        Frame::NONE.inner_margin(Margin { left: 18 + ((1.0 - fade) * 14.0) as i8, right: 18, top: 7, bottom: 7 }).show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 match me.tex(ctx, &s.image) {
                                     Some(t) => {
@@ -1080,6 +1193,7 @@ impl App {
                                     });
                                 }
                             }
+                        });
                         });
                     }
                 });
@@ -1157,6 +1271,7 @@ impl App {
                         });
                     });
                     let rect = r.response.rect;
+                    ui::hover_outline(ui, Id::new(("timer-card", &t.id)), rect, 16);
                     self.drop_rects.push((Drop::Overlay(t.id.clone()), rect));
                     if hovering && ctx.input(|i| i.pointer.latest_pos()).map(|p| rect.contains(p)).unwrap_or(false) {
                         ui.painter().rect(rect, 14, Color32::from_rgba_unmultiplied(109, 93, 252, 40), Stroke::new(2.0, ACCENT), StrokeKind::Inside);
@@ -1399,8 +1514,8 @@ impl App {
                 let p = ui.painter();
                 let y = r.center().y;
                 let x0 = r.left() + 14.0;
-                let x1 = x0 + 150.0;
-                let x2 = r.left() + r.width() * 0.68;
+                let x1 = x0 + 124.0;
+                let x2 = r.right() - 104.0;
                 p.text(pos2(x0, y), Align2::LEFT_CENTER, a, font.clone(), TEXT);
                 p.text(pos2(x1, y), Align2::LEFT_CENTER, b, font.clone(), TEXT);
                 match c {
@@ -1557,11 +1672,28 @@ impl App {
     // ---------------- modals ----------------
 
     fn modals(&mut self, ctx: &Context, data: &Data) {
-        let Some(mut m) = self.modal.take() else { return };
+        let Some(mut m) = self.modal.take() else {
+            self.modal_open = false;
+            return;
+        };
+        if !self.modal_open {
+            self.modal_open = true;
+            self.modal_t0 = ctx.input(|i| i.time);
+        }
+        let mt = ui::ease_out(((ctx.input(|i| i.time) - self.modal_t0) as f32) / 0.26);
+        if mt < 1.0 {
+            ctx.request_repaint();
+        }
         let mut close = false;
-        let frame = Frame::new().fill(Color32::from_rgb(21, 22, 29)).stroke(Stroke::new(1.0, LINE2)).corner_radius(16).inner_margin(Margin::same(22));
+        let frame = Frame::new()
+            .fill(Color32::from_rgb(21, 21, 31))
+            .stroke(Stroke::new(1.0, Color32::from_rgba_unmultiplied(160, 130, 255, (40.0 + 30.0 * mt) as u8)))
+            .corner_radius(18)
+            .inner_margin(Margin::same(22))
+            .shadow(egui::Shadow { offset: [0, 18], blur: 50, spread: 0, color: Color32::from_black_alpha((150.0 * mt) as u8) });
         let width = match &m { Modal::Phone { .. } | Modal::Timer { .. } => 600.0, Modal::Account { .. } => 640.0, _ => 440.0 };
-        let resp = egui::Modal::new(Id::new("modal")).frame(frame).backdrop_color(Color32::from_black_alpha(150)).show(ctx, |ui| {
+        let resp = egui::Modal::new(Id::new("modal")).frame(frame).backdrop_color(Color32::from_rgba_unmultiplied(6, 4, 16, (170.0 * mt) as u8)).show(ctx, |ui| {
+            ui.multiply_opacity(mt);
             ui.set_width(width);
             ui.spacing_mut().item_spacing.y = 8.0;
             match &mut m {
@@ -1917,19 +2049,31 @@ impl App {
         let t = ctx.input(|i| i.time);
         self.toasts.retain(|(_, _, at)| t - at < 4.5);
         if !self.toasts.is_empty() {
-            egui::Area::new(Id::new("toasts")).anchor(Align2::RIGHT_BOTTOM, vec2(-18.0, -18.0)).order(egui::Order::Foreground).interactable(false).show(ctx, |ui| {
-                for (msg, err, _) in &self.toasts {
-                    Frame::new().fill(Color32::from_rgb(26, 27, 35)).stroke(Stroke::new(1.0, LINE2)).corner_radius(11).inner_margin(Margin::symmetric(14, 11)).shadow(egui::Shadow { offset: [0, 10], blur: 30, spread: 0, color: Color32::from_black_alpha(120) }).show(ui, |ui| {
-                        ui.set_max_width(380.0);
-                        ui.horizontal(|ui| {
-                            let (r, _) = ui.allocate_exact_size(vec2(8.0, 16.0), Sense::hover());
-                            ui.painter().circle_filled(r.center(), 4.0, if *err { RED } else { GREEN });
-                            ui.add(egui::Label::new(RichText::new(msg).size(12.8)).wrap());
+            let mut y = -18.0;
+            for (i, (msg, err, at)) in self.toasts.iter().enumerate().rev() {
+                let age = (t - at) as f32;
+                let inn = ui::ease_out(age / 0.35);
+                let out = ((4.5 - age) / 0.35).clamp(0.0, 1.0);
+                let r = egui::Area::new(Id::new(("toast", i, (*at * 1000.0) as i64)))
+                    .anchor(Align2::RIGHT_BOTTOM, vec2(-18.0 + (1.0 - inn) * 60.0 + (1.0 - out) * 30.0, y))
+                    .order(egui::Order::Foreground)
+                    .interactable(false)
+                    .show(ctx, |ui| {
+                        ui.multiply_opacity(inn * out);
+                        Frame::new().fill(Color32::from_rgb(26, 25, 38)).stroke(Stroke::new(1.0, Color32::from_rgba_unmultiplied(160, 130, 255, 50))).corner_radius(12).inner_margin(Margin::symmetric(14, 11)).shadow(egui::Shadow { offset: [0, 10], blur: 30, spread: 0, color: Color32::from_black_alpha(120) }).show(ui, |ui| {
+                            ui.set_max_width(380.0);
+                            ui.horizontal(|ui| {
+                                let (r, _) = ui.allocate_exact_size(vec2(8.0, 16.0), Sense::hover());
+                                let col = if *err { RED } else { GREEN };
+                                ui::glow(ui.painter(), r.center(), 9.0, col.gamma_multiply(0.5));
+                                ui.painter().circle_filled(r.center(), 4.0, col);
+                                ui.add(egui::Label::new(RichText::new(msg).size(12.8)).wrap());
+                            });
                         });
                     });
-                }
-            });
-            ctx.request_repaint_after(std::time::Duration::from_millis(250));
+                y -= (r.response.rect.height() + 10.0) * out.max(0.0).sqrt();
+            }
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
         }
         // confetti
         if !self.confetti.is_empty() {
@@ -1957,8 +2101,9 @@ impl App {
 /// A full-width menu row with an icon. Returns true when clicked.
 fn menu_item(ui: &mut Ui, icon: Icon, label: &str, col: Color32) -> bool {
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
-    if resp.hovered() {
-        ui.painter().rect_filled(r, 7, Color32::from_white_alpha(12));
+    let hv = ui::hover_amt(ui.ctx(), resp.id, resp.hovered());
+    if hv > 0.01 {
+        ui.painter().rect_filled(r, 8, Color32::from_white_alpha((13.0 * hv) as u8));
     }
     ui::draw_icon(ui.painter(), icon, Rect::from_center_size(pos2(r.left() + 18.0, r.center().y), Vec2::splat(13.0)), col);
     ui.painter().text(pos2(r.left() + 36.0, r.center().y), Align2::LEFT_CENTER, label, ui::semi(12.8), col);
@@ -2045,27 +2190,89 @@ fn hgrad_rounded(r: Rect, a: Color32, b: Color32, rad: f32) -> egui::Shape {
     egui::Shape::mesh(mesh)
 }
 
-fn tile(ui: &mut Ui, tex: Option<&TextureHandle>, label: &str, time: &str, final_: bool, past: bool) {
-    let (rect, _) = ui.allocate_exact_size(vec2(116.0, 150.0), Sense::hover());
-    let p = ui.painter();
+fn tile(ui: &mut Ui, tex: Option<&TextureHandle>, label: &str, time: &str, final_: bool, past: bool, fade: f32) {
+    let (slot, resp) = ui.allocate_exact_size(vec2(116.0, 150.0), Sense::hover());
+    let hv = ui::hover_amt(ui.ctx(), resp.id, resp.hovered());
+    let rect = slot.translate(vec2(0.0, -4.0 * hv + (1.0 - fade) * 16.0));
+    let p = ui.painter().clone();
+    let p = { let mut p = p; p.multiply_opacity(fade); p };
     let op: f32 = if past { 0.4 } else { 1.0 };
-    if final_ {
-        p.rect_filled(rect.expand(3.0), 14, Color32::from_rgba_unmultiplied(109, 93, 252, 20));
+    if hv > 0.01 {
+        p.rect_filled(rect.expand(1.0).translate(vec2(0.0, 6.0 * hv)), 14, Color32::from_black_alpha((60.0 * hv) as u8));
     }
-    p.rect(rect, 12, PANEL.gamma_multiply(op.max(0.6)), Stroke::new(1.0, if final_ { Color32::from_rgba_unmultiplied(124, 108, 255, 150) } else { LINE }), StrokeKind::Inside);
+    if final_ {
+        let pulse = 0.5 + 0.5 * (ui.input(|i| i.time) as f32 * 1.6).sin();
+        p.rect_filled(rect.expand(3.0 + 2.0 * pulse), 16, Color32::from_rgba_unmultiplied(160, 110, 255, (16.0 + 14.0 * pulse) as u8));
+    }
+    let border = if final_ { Color32::from_rgba_unmultiplied(170, 130, 255, 160) } else { Color32::from_white_alpha(14).lerp_to_gamma(Color32::from_rgba_unmultiplied(150, 120, 255, 120), hv) };
+    p.rect(rect, 13, Color32::from_rgba_unmultiplied(20, 20, 30, 230).gamma_multiply(op.max(0.6)), Stroke::new(1.0, border), StrokeKind::Inside);
     let ir = Rect::from_min_size(rect.min + vec2(8.0, 8.0), Vec2::splat(100.0));
     match tex {
         Some(t) => {
-            egui::Image::new(t).corner_radius(10).tint(Color32::WHITE.gamma_multiply(op)).paint_at(ui, ir);
+            p.image(t.id(), ir, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE.gamma_multiply(op));
+            // round the image corners with a frame-coloured mask stroke
+            p.rect_stroke(ir.expand(3.0), 13, Stroke::new(6.0, Color32::from_rgb(20, 20, 30).gamma_multiply(op.max(0.6))), StrokeKind::Inside);
         }
         None => {
             p.rect_filled(ir, 10, PANEL3);
-            ui::draw_icon(p, Icon::Image, Rect::from_center_size(ir.center(), Vec2::splat(22.0)), DIM);
+            ui::draw_icon(&p, Icon::Image, Rect::from_center_size(ir.center(), Vec2::splat(22.0)), DIM);
         }
     }
     let lc = if final_ { ACCENT_TXT } else { TEXT };
     p.text(pos2(rect.center().x, ir.bottom() + 15.0), Align2::CENTER_CENTER, label, ui::bold(12.8), lc.gamma_multiply(op));
     p.text(pos2(rect.center().x, ir.bottom() + 31.0), Align2::CENTER_CENTER, time, ui::reg(10.8), DIM.gamma_multiply(op));
+}
+
+/// Rounded rect filled by a colour field (sampled on concentric rings), for
+/// smooth radial lights that stay inside the rounded corners.
+fn rrect_field(r: Rect, rad: f32, f: impl Fn(Pos2) -> Color32) -> egui::Shape {
+    let rad = rad.min(r.width() / 2.0).min(r.height() / 2.0);
+    let corners = [
+        (pos2(r.right() - rad, r.top() + rad), -90.0f32),
+        (pos2(r.right() - rad, r.bottom() - rad), 0.0),
+        (pos2(r.left() + rad, r.bottom() - rad), 90.0),
+        (pos2(r.left() + rad, r.top() + rad), 180.0),
+    ];
+    let mut edge = Vec::new();
+    for (c, start) in corners {
+        for i in 0..=6 {
+            let a = (start + 15.0 * i as f32).to_radians();
+            edge.push(c + vec2(a.cos(), a.sin()) * rad);
+        }
+    }
+    // extra points along the long edges so lights sample smoothly
+    let mut pts = Vec::new();
+    for i in 0..edge.len() {
+        let (a, b) = (edge[i], edge[(i + 1) % edge.len()]);
+        let n = ((a.distance(b) / 40.0) as usize).max(1);
+        for k in 0..n {
+            pts.push(a.lerp(b, k as f32 / n as f32));
+        }
+    }
+    let ctr = r.center();
+    let rings = 7;
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(ctr, f(ctr));
+    let n = pts.len() as u32;
+    for j in 1..=rings {
+        let t = j as f32 / rings as f32;
+        for p in &pts {
+            let q = ctr.lerp(*p, t);
+            mesh.colored_vertex(q, f(q));
+        }
+    }
+    for i in 0..n {
+        mesh.add_triangle(0, 1 + i, 1 + (i + 1) % n);
+    }
+    for j in 1..rings as u32 {
+        let (a0, b0) = (1 + (j - 1) * n, 1 + j * n);
+        for i in 0..n {
+            let i1 = (i + 1) % n;
+            mesh.add_triangle(a0 + i, b0 + i, b0 + i1);
+            mesh.add_triangle(a0 + i, b0 + i1, a0 + i1);
+        }
+    }
+    egui::Shape::mesh(mesh)
 }
 
 fn step_chips(ui: &mut Ui, s: &Step, _now: i64) {
@@ -2111,8 +2318,10 @@ impl eframe::App for App {
         let bgp = ctx.layer_painter(egui::LayerId::background());
         let sr = ctx.screen_rect();
         bgp.rect_filled(sr, 0, ui::BG);
-        ui::glow(&bgp, sr.left_top() + vec2(-40.0, -60.0), 760.0, Color32::from_rgba_unmultiplied(109, 93, 252, 52));
-        ui::glow(&bgp, sr.right_bottom() + vec2(60.0, 80.0), 620.0, Color32::from_rgba_unmultiplied(91, 140, 255, 24));
+        let tt = ctx.input(|i| i.time) as f32;
+        ui::glow(&bgp, sr.left_top() + vec2(-40.0 + 90.0 * (tt * 0.11).sin(), -60.0 + 70.0 * (tt * 0.09).cos()), 780.0, Color32::from_rgba_unmultiplied(120, 90, 255, 54));
+        ui::glow(&bgp, sr.right_bottom() + vec2(60.0 + 80.0 * (tt * 0.08).cos(), 80.0 + 60.0 * (tt * 0.12).sin()), 640.0, Color32::from_rgba_unmultiplied(244, 96, 164, 22));
+        ui::glow(&bgp, pos2(sr.center().x + sr.width() * 0.25 * (tt * 0.05).sin(), sr.bottom() + 120.0), 520.0, Color32::from_rgba_unmultiplied(255, 170, 80, 10));
 
         self.drop_rects.clear();
         self.titlebar(ctx);
@@ -2122,6 +2331,8 @@ impl eframe::App for App {
         self.handle_drops(ctx, &data);
         self.overlays(ctx);
         self.resize_edges(ctx);
-        ctx.request_repaint_after(std::time::Duration::from_millis(1000));
+        // Keep the ambient motion flowing while the window has focus; idle otherwise.
+        let focused = ctx.input(|i| i.focused);
+        ctx.request_repaint_after(std::time::Duration::from_millis(if focused { 33 } else { 1000 }));
     }
 }

@@ -279,6 +279,10 @@ const KEYRING_USER: &str = "roblox-open-cloud-api-key";
 const KEYRING_REFRESH: &str = "roblox-oauth-refresh-token";
 
 fn kr(user: &str) -> Option<keyring::Entry> {
+    // Test copies (ROICON_NO_KEYRING) never see the real saved sign-in.
+    if std::env::var_os("ROICON_NO_KEYRING").is_some() {
+        return None;
+    }
     keyring::Entry::new(KEYRING_SERVICE, user).ok()
 }
 fn kr_get(user: &str) -> Option<String> {
