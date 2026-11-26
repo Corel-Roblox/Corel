@@ -54,44 +54,75 @@ pub fn hover_amt(ctx: &egui::Context, id: Id, on: bool) -> f32 {
 
 static PAGE_T0: AtomicU64 = AtomicU64::new(0);
 
+static PAGE_PENDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// Restart the page-enter animation (call when the visible page changes).
+/// The clock starts on the *next* frame, so a slow first frame (loading
+/// textures) can't make the animation skip ahead.
 pub fn page_changed(ctx: &egui::Context) {
-    PAGE_T0.store(ctx.input(|i| i.time).to_bits(), Ordering::Relaxed);
+    PAGE_PENDING.store(true, Ordering::Relaxed);
+    ctx.request_repaint();
 }
 
-/// Page-enter progress (0 -> 1, eased) for something that starts `delay` seconds in.
-pub fn appear(ctx: &egui::Context, delay: f32) -> f32 {
+/// Page-enter progress, 0 -> 1 eased over ~0.32 s.
+pub fn page_t(ctx: &egui::Context) -> f32 {
+    let now = ctx.input(|i| i.time);
+    if PAGE_PENDING.swap(false, Ordering::Relaxed) {
+        PAGE_T0.store(now.to_bits(), Ordering::Relaxed);
+        ctx.request_repaint();
+        return 0.0;
+    }
     let t0 = f64::from_bits(PAGE_T0.load(Ordering::Relaxed));
-    let t = ((ctx.input(|i| i.time) - t0) as f32 - delay) / 0.38;
+    let t = ((now - t0) as f32 / 0.32).clamp(0.0, 1.0);
     if t < 1.0 {
         ctx.request_repaint();
     }
     ease_out(t)
 }
 
+/// Page-enter progress (0 -> 1, eased) for something that starts `delay` seconds in.
+pub fn appear(ctx: &egui::Context, delay: f32) -> f32 {
+    // Page switches no longer fade (it read as a flicker); content appears at once.
+    let _ = (ctx, delay, &PAGE_T0);
+    1.0
+}
+
 /// Rounded rect filled with a gradient: `color_at(tx, ty)` for tx, ty in 0..1.
+/// The edge gets a 1px fade (like egui's own shapes) so corners aren't jagged.
 pub fn grad_rrect(r: Rect, rad: f32, color_at: impl Fn(f32, f32) -> Color32) -> Shape {
-    let rad = rad.min(r.width() / 2.0).min(r.height() / 2.0).max(0.0);
+    let feather = 1.0;
+    let r_in = r.shrink(feather * 0.5);
+    let rad = (rad - feather * 0.5).min(r_in.width() / 2.0).min(r_in.height() / 2.0).max(0.5);
     let col = |p: Pos2| color_at(((p.x - r.left()) / r.width()).clamp(0.0, 1.0), ((p.y - r.top()) / r.height()).clamp(0.0, 1.0));
     let corners = [
-        (pos2(r.right() - rad, r.top() + rad), -90.0f32),
-        (pos2(r.right() - rad, r.bottom() - rad), 0.0),
-        (pos2(r.left() + rad, r.bottom() - rad), 90.0),
-        (pos2(r.left() + rad, r.top() + rad), 180.0),
+        (pos2(r_in.right() - rad, r_in.top() + rad), -90.0f32),
+        (pos2(r_in.right() - rad, r_in.bottom() - rad), 0.0),
+        (pos2(r_in.left() + rad, r_in.bottom() - rad), 90.0),
+        (pos2(r_in.left() + rad, r_in.top() + rad), 180.0),
     ];
-    let mut mesh = egui::Mesh::default();
-    mesh.colored_vertex(r.center(), col(r.center()));
-    let mut n = 0u32;
+    let mut ring: Vec<(Pos2, Vec2)> = Vec::new();
     for (c, start) in corners {
         for i in 0..=10 {
             let a = (start + 9.0 * i as f32).to_radians();
-            let p = c + vec2(a.cos(), a.sin()) * rad;
-            mesh.colored_vertex(p, col(p));
-            n += 1;
+            let n = vec2(a.cos(), a.sin());
+            ring.push((c + n * rad, n));
         }
     }
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(r.center(), col(r.center()));
+    let n = ring.len() as u32;
+    for (p, _) in &ring {
+        mesh.colored_vertex(*p, col(*p));
+    }
+    for (p, nrm) in &ring {
+        mesh.colored_vertex(*p + *nrm * feather, Color32::TRANSPARENT);
+    }
     for i in 0..n {
-        mesh.add_triangle(0, 1 + i, 1 + (i + 1) % n);
+        let j = (i + 1) % n;
+        mesh.add_triangle(0, 1 + i, 1 + j);
+        // feather strip
+        mesh.add_triangle(1 + i, 1 + n + i, 1 + n + j);
+        mesh.add_triangle(1 + i, 1 + n + j, 1 + j);
     }
     Shape::mesh(mesh)
 }
@@ -99,6 +130,223 @@ pub fn grad_rrect(r: Rect, rad: f32, color_at: impl Fn(f32, f32) -> Color32) -> 
 /// Horizontal gradient (a -> b) in a rounded rect.
 pub fn brand_rrect(r: Rect, rad: f32, a: Color32, b: Color32) -> Shape {
     grad_rrect(r, rad, |tx, _| a.lerp_to_gamma(b, tx))
+}
+
+// ------------------------------------------------------------------ website look
+
+/// Light violet and magenta used in the moving "shine" gradient (like the website headline).
+pub const LILAC: Color32 = Color32::from_rgb(155, 133, 255);
+pub const ORCHID: Color32 = Color32::from_rgb(200, 109, 245);
+const SHINE: [Color32; 6] = [LILAC, ORCHID, PINK, SAND, ORCHID, LILAC];
+
+/// Colour at `t` (wraps) along a looping list of stops.
+pub fn sample(stops: &[Color32], t: f32) -> Color32 {
+    let n = stops.len() - 1;
+    let x = t.rem_euclid(1.0) * n as f32;
+    let i = (x as usize).min(n - 1);
+    stops[i].lerp_to_gamma(stops[i + 1], x - i as f32)
+}
+
+/// Text whose letters are coloured by `col(t)` for t in 0..1 across the text.
+pub fn grad_galley(p: &Painter, text: &str, font: FontId, spacing: f32, col: impl Fn(f32) -> Color32) -> Arc<egui::Galley> {
+    let chars: Vec<char> = text.chars().collect();
+    let n = chars.len().max(2) - 1;
+    let mut job = egui::text::LayoutJob::default();
+    for (i, ch) in chars.iter().enumerate() {
+        let mut buf = [0u8; 4];
+        job.append(ch.encode_utf8(&mut buf), 0.0, egui::TextFormat { font_id: font.clone(), color: col(i as f32 / n as f32), extra_letter_spacing: spacing, ..Default::default() });
+    }
+    p.layout_job(job)
+}
+
+/// Animated yellow-pink-purple gradient text (the website's "counts down." look). Returns its rect.
+pub fn shine_text(p: &Painter, pos: Pos2, align: Align2, text: &str, font: FontId, time: f64) -> Rect {
+    let shift = (time / 9.0) as f32;
+    let g = grad_galley(p, text, font, 0.0, |t| sample(&SHINE, t / 3.0 - shift));
+    let r = align.anchor_size(pos, g.size());
+    p.galley(r.min, g, TEXT);
+    p.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+    r
+}
+
+/// Warm (sand to pink) gradient text, e.g. for section labels.
+pub fn warm_text(p: &Painter, pos: Pos2, align: Align2, text: &str, font: FontId, spacing: f32) -> Rect {
+    let g = grad_galley(p, text, font, spacing, |t| SAND.lerp_to_gamma(PINK, t));
+    let r = align.anchor_size(pos, g.size());
+    p.galley(r.min, g, TEXT);
+    r
+}
+
+/// Rounded rect filled by a colour field (sampled on concentric rings), for smooth
+/// radial lights that stay inside the rounded corners.
+pub fn rrect_field(r: Rect, rad: f32, f: impl Fn(Pos2) -> Color32) -> Shape {
+    let rad = rad.min(r.width() / 2.0).min(r.height() / 2.0);
+    let corners = [
+        (pos2(r.right() - rad, r.top() + rad), -90.0f32),
+        (pos2(r.right() - rad, r.bottom() - rad), 0.0),
+        (pos2(r.left() + rad, r.bottom() - rad), 90.0),
+        (pos2(r.left() + rad, r.top() + rad), 180.0),
+    ];
+    let mut edge = Vec::new();
+    for (c, start) in corners {
+        for i in 0..=6 {
+            let a = (start + 15.0 * i as f32).to_radians();
+            edge.push(c + vec2(a.cos(), a.sin()) * rad);
+        }
+    }
+    let mut pts = Vec::new();
+    for i in 0..edge.len() {
+        let (a, b) = (edge[i], edge[(i + 1) % edge.len()]);
+        let n = ((a.distance(b) / 40.0) as usize).max(1);
+        for k in 0..n {
+            pts.push(a.lerp(b, k as f32 / n as f32));
+        }
+    }
+    let ctr = r.center();
+    let rings = 8;
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(ctr, f(ctr));
+    let n = pts.len() as u32;
+    for j in 1..=rings {
+        let t = j as f32 / rings as f32;
+        for p in &pts {
+            let q = ctr.lerp(*p, t);
+            mesh.colored_vertex(q, f(q));
+        }
+    }
+    for i in 0..n {
+        mesh.add_triangle(0, 1 + i, 1 + (i + 1) % n);
+    }
+    for j in 1..rings as u32 {
+        let (a0, b0) = (1 + (j - 1) * n, 1 + j * n);
+        for i in 0..n {
+            let i1 = (i + 1) % n;
+            mesh.add_triangle(a0 + i, b0 + i, b0 + i1);
+            mesh.add_triangle(a0 + i, b0 + i1, a0 + i1);
+        }
+    }
+    // 1px fade outside the edge so the rounded corners are smooth
+    let outer = 1 + (rings as u32 - 1) * n;
+    let base = mesh.vertices.len() as u32;
+    for p in &pts {
+        let d = (*p - ctr).normalized();
+        let nrm = if (p.x - r.left()).abs() < 0.01 || (p.x - r.right()).abs() < 0.01 { vec2(d.x.signum(), 0.0) } else if (p.y - r.top()).abs() < 0.01 || (p.y - r.bottom()).abs() < 0.01 { vec2(0.0, d.y.signum()) } else { d };
+        mesh.colored_vertex(*p + nrm, Color32::TRANSPARENT);
+    }
+    for i in 0..n {
+        let i1 = (i + 1) % n;
+        mesh.add_triangle(outer + i, base + i, base + i1);
+        mesh.add_triangle(outer + i, base + i1, outer + i1);
+    }
+    Shape::mesh(mesh)
+}
+
+/// A card frame with the website's pointer spotlight: a soft violet light that
+/// follows the mouse inside the card (drawn under the content).
+pub fn spot<R>(ui: &mut Ui, frame: Frame, add: impl FnOnce(&mut Ui) -> R) -> egui::InnerResponse<R> {
+    let mut idx = None;
+    let r = frame.show(ui, |ui| {
+        idx = Some(ui.painter().add(Shape::Noop));
+        add(ui)
+    });
+    let rect = r.response.rect;
+    let ctx = ui.ctx().clone();
+    let id = r.response.id.with("spot");
+    let over = ui.rect_contains_pointer(rect);
+    let h = hover_amt(&ctx, id, over);
+    if let (Some(i), true) = (idx, h > 0.01) {
+        let ptr = ctx.pointer_hover_pos().unwrap_or(rect.center());
+        let mx = smooth(&ctx, id.with("x"), ptr.x, 22.0);
+        let my = smooth(&ctx, id.with("y"), ptr.y, 22.0);
+        let m = pos2(mx, my);
+        let rad = (frame.corner_radius.nw as f32).max(4.0);
+        ui.painter().set(i, rrect_field(rect.shrink(1.0), rad, |q| {
+            let d = (1.0 - q.distance(m) / 300.0).max(0.0);
+            Color32::from_rgba_unmultiplied(170, 120, 255, (d * d * 40.0 * h) as u8)
+        }));
+        ui.painter().rect_stroke(rect, frame.corner_radius, Stroke::new(1.0, Color32::from_rgba_unmultiplied(170, 130, 255, (70.0 * h) as u8)), StrokeKind::Inside);
+    }
+    r
+}
+
+/// A progress node like the website timeline: done (pink ring + check), current
+/// (warm gradient with a pulsing halo), upcoming (grey ring), error (red), live (green).
+#[derive(Clone, Copy, PartialEq)]
+pub enum Node {
+    Done,
+    Current,
+    Upcoming,
+    Error,
+    Live,
+    Skipped,
+}
+
+pub fn node(p: &Painter, c: Pos2, r: f32, state: Node, label: Option<&str>, time: f64) {
+    let t = time as f32;
+    // solid base so the timeline line never shows through a see-through dot
+    p.circle_filled(c, r, Color32::from_rgb(19, 18, 28));
+    match state {
+        Node::Done => {
+            p.circle_filled(c, r, Color32::from_rgba_unmultiplied(244, 96, 164, 40));
+            p.circle_stroke(c, r - 1.0, Stroke::new(1.6, Color32::from_rgba_unmultiplied(244, 96, 164, 150)));
+            check(p, c, r * 0.42, PINK);
+        }
+        Node::Live => {
+            let pulse = (t * 1.2).fract();
+            p.circle_filled(c, r + 7.0 * pulse, Color32::from_rgba_unmultiplied(61, 220, 151, (70.0 * (1.0 - pulse)) as u8));
+            p.add(grad_rrect(Rect::from_center_size(c, Vec2::splat(r * 2.0)), r, |tx, ty| GREEN.lerp_to_gamma(Color32::from_rgb(79, 214, 232), (tx + ty) / 2.0)));
+            check(p, c, r * 0.42, Color32::from_rgb(6, 36, 24));
+            p.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+        }
+        Node::Current => {
+            let pulse = (t * 1.1).fract();
+            p.circle_filled(c, r + 8.0 * pulse, Color32::from_rgba_unmultiplied(255, 170, 100, (60.0 * (1.0 - pulse)) as u8));
+            p.circle_filled(c, r + 3.0, Color32::from_rgba_unmultiplied(255, 170, 100, 36));
+            p.add(grad_rrect(Rect::from_center_size(c, Vec2::splat(r * 2.0)), r, |tx, ty| SAND.lerp_to_gamma(PINK, (tx + ty) / 2.0)));
+            if let Some(l) = label {
+                p.text(c, Align2::CENTER_CENTER, l, bold(r * 1.05), Color32::from_rgb(26, 15, 5));
+            } else {
+                p.circle_filled(c, r * 0.32, Color32::from_rgb(26, 15, 5));
+            }
+            p.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+        }
+        Node::Upcoming | Node::Skipped => {
+            p.circle_filled(c, r, Color32::from_rgb(21, 19, 31));
+            p.circle_stroke(c, r - 1.0, Stroke::new(1.6, Color32::from_white_alpha(if state == Node::Skipped { 16 } else { 34 })));
+            if let Some(l) = label {
+                p.text(c, Align2::CENTER_CENTER, l, bold(r * 1.0), MUTED);
+            } else if state == Node::Skipped {
+                p.line_segment([c - vec2(r * 0.35, 0.0), c + vec2(r * 0.35, 0.0)], Stroke::new(1.6, DIM));
+            }
+        }
+        Node::Error => {
+            p.circle_filled(c, r, Color32::from_rgba_unmultiplied(248, 113, 113, 40));
+            p.circle_stroke(c, r - 1.0, Stroke::new(1.6, RED));
+            p.text(c, Align2::CENTER_CENTER, "!", bold(r * 1.0), RED);
+        }
+    }
+}
+
+fn check(p: &Painter, c: Pos2, s: f32, col: Color32) {
+    p.line(vec![c + vec2(-s, 0.0), c + vec2(-s * 0.3, s * 0.7), c + vec2(s, -s * 0.7)], Stroke::new(1.8, col));
+}
+
+/// Gradient progress line between two points (horizontal or vertical) with a glowing tip.
+pub fn progress_line(p: &Painter, a: Pos2, b: Pos2, frac: f32, width: f32, tip: bool) {
+    let vertical = (b.y - a.y).abs() > (b.x - a.x).abs();
+    let track = if vertical { Rect::from_min_max(pos2(a.x - width / 2.0, a.y), pos2(a.x + width / 2.0, b.y)) } else { Rect::from_min_max(pos2(a.x, a.y - width / 2.0), pos2(b.x, a.y + width / 2.0)) };
+    p.rect_filled(track, width / 2.0, Color32::from_white_alpha(18));
+    let frac = frac.clamp(0.0, 1.0);
+    if frac <= 0.001 {
+        return;
+    }
+    let end = a.lerp(b, frac);
+    let fill = if vertical { Rect::from_min_max(pos2(a.x - width / 2.0, a.y), pos2(a.x + width / 2.0, end.y)) } else { Rect::from_min_max(pos2(a.x, a.y - width / 2.0), pos2(end.x, a.y + width / 2.0)) };
+    p.add(grad_rrect(fill, width / 2.0, |tx, ty| SAND.lerp_to_gamma(PINK, if vertical { ty } else { tx })));
+    if tip && frac < 0.999 {
+        glow(p, end, width * 5.0, Color32::from_rgba_unmultiplied(244, 96, 164, 120));
+        p.circle_filled(end, width * 0.9, Color32::WHITE);
+    }
 }
 
 static LOGO: OnceLock<egui::TextureId> = OnceLock::new();
@@ -230,8 +478,10 @@ pub fn hover_outline(ui: &Ui, id: Id, rect: Rect, radius: u8) {
 }
 
 pub fn section_label(ui: &mut Ui, text: &str) {
-    ui.label(egui::RichText::new(text.to_uppercase()).font(semi(11.0)).color(DIM).extra_letter_spacing(1.3));
-    ui.add_space(2.0);
+    let g = grad_galley(ui.painter(), &text.to_uppercase(), bold(11.0), 1.6, |t| SAND.lerp_to_gamma(PINK, t));
+    let (r, _) = ui.allocate_exact_size(g.size(), Sense::hover());
+    ui.painter().galley(r.min, g, TEXT);
+    ui.add_space(4.0);
 }
 
 #[derive(Clone, Copy, PartialEq)]

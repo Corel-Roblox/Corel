@@ -778,10 +778,12 @@ impl App {
                 ui::page_changed(ctx);
                 let _ = first;
             }
-            let t = 0.25 + 0.75 * ui::appear(ctx, 0.0);
+            let pt = ui::page_t(ctx);
+            let t = 0.35 + 0.65 * pt;
+            let lift = egui::emath::TSTransform::from_translation(vec2(0.0, (1.0 - pt) * 10.0));
             let Some(e) = sel.cloned() else {
                 ui.multiply_opacity(t);
-                self.welcome(ui, data);
+                ui.with_visual_transform(lift, |ui| self.welcome(ui, data));
                 return;
             };
             self.header(ui, ctx, &e, now);
@@ -789,7 +791,7 @@ impl App {
             let inner = Rect::from_min_max(avail.min + vec2(28.0, 0.0), avail.max - vec2(28.0, 0.0));
             ui.scope_builder(egui::UiBuilder::new().max_rect(inner).layout(Layout::top_down(Align::Min)), |ui| {
                 ui.multiply_opacity(t);
-                match self.tab {
+                ui.with_visual_transform(lift, |ui| match self.tab {
                 Tab::Update => {
                     if e.update.is_some() {
                         self.launch_view(ui, ctx, &e, now)
@@ -799,7 +801,7 @@ impl App {
                 }
                 Tab::Timers => self.timers_view(ui, ctx, &e),
                 Tab::Settings => self.settings_view(ui, ctx, &e),
-                }
+                });
             });
         });
     }
@@ -829,7 +831,7 @@ impl App {
                     });
                 });
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    Frame::new().fill(Color32::from_rgba_unmultiplied(20, 20, 30, 220)).stroke(Stroke::new(1.0, Color32::from_white_alpha(14))).corner_radius(12).inner_margin(Margin::same(4)).show(ui, |ui| {
+                    Frame::new().fill(Color32::from_rgba_unmultiplied(18, 17, 27, 230)).stroke(Stroke::new(1.0, Color32::from_white_alpha(16))).corner_radius(11).inner_margin(Margin::same(3)).show(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 2.0;
                             let pill_idx = ui.painter().add(egui::Shape::Noop);
@@ -840,7 +842,7 @@ impl App {
                             for (t, name) in [(Tab::Settings, "Settings"), (Tab::Timers, "Timers"), (Tab::Update, "Update")] {
                                 let on = self.tab == t;
                                 let g = ui.painter().layout_no_wrap(name.into(), ui::semi(12.8), TEXT);
-                                let (r, resp) = ui.allocate_exact_size(vec2(g.size().x + 30.0, 30.0), Sense::click());
+                                let (r, resp) = ui.allocate_exact_size(vec2(g.size().x + 28.0, 28.0), Sense::click());
                                 if on {
                                     act = Some(r);
                                 }
@@ -870,8 +872,9 @@ impl App {
                                 ui.painter().set(
                                     pill_idx,
                                     egui::Shape::Vec(vec![
-                                        ui::brand_rrect(pr, 8.0, ui::GRAD_A, ui::GRAD_B),
-                                        ui::grad_rrect(pr, 8.0, |_, ty| Color32::from_white_alpha(if ty < 0.5 { (22.0 * (1.0 - ty * 2.0)) as u8 } else { 0 })),
+                                        ui::brand_rrect(pr, 8.0, Color32::from_rgb(46, 38, 78), Color32::from_rgb(58, 36, 70)),
+                                        ui::grad_rrect(pr, 8.0, |_, ty| Color32::from_white_alpha(if ty < 0.5 { (10.0 * (1.0 - ty * 2.0)) as u8 } else { 0 })),
+                                        egui::Shape::rect_stroke(pr, 8, Stroke::new(1.0, Color32::from_rgba_unmultiplied(170, 140, 255, 70)), StrokeKind::Inside),
                                     ]),
                                 );
                             }
@@ -937,6 +940,8 @@ impl App {
             ui,
             "plan",
             |me, ui| {
+                me.setup_progress(ui, ctx, &e2, has_key, now);
+                ui.add_space(14.0);
                 if !has_key {
                     me.no_key_banner(ui);
                 }
@@ -951,7 +956,7 @@ impl App {
                 });
                 ui.add_space(22.0);
                 ui::section_label(ui, "Update date");
-                ui::card().inner_margin(Margin::symmetric(16, 12)).show(ui, |ui| {
+                ui::spot(ui, ui::card().inner_margin(Margin::symmetric(16, 12)), |ui| {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
                         let (r, _) = ui.allocate_exact_size(vec2(22.0, 38.0), Sense::hover());
@@ -1026,9 +1031,49 @@ impl App {
         );
     }
 
+    /// Connect -> Current icon -> New icon -> Date -> Ready, as a website-style progress track.
+    fn setup_progress(&mut self, ui: &mut Ui, ctx: &Context, e: &Experience, has_key: bool, now: i64) {
+        let items = [
+            ("Connect", has_key),
+            ("Current icon", e.current_icon.is_some()),
+            ("New icon", e.new_icon.is_some()),
+            ("Update date", e.planned_at.is_some_and(|t| t > now)),
+        ];
+        let done = items.iter().take_while(|x| x.1).count();
+        let all = done == items.len();
+        let time = ctx.input(|i| i.time);
+        ui::spot(ui, ui::card().inner_margin(Margin::symmetric(22, 14)), |ui| {
+            ui.set_width(ui.available_width());
+            let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 52.0), Sense::hover());
+            let p = ui.painter();
+            let n = items.len() + 1;
+            let xs: Vec<f32> = (0..n).map(|i| r.left() + 20.0 + (r.width() - 40.0) * i as f32 / (n - 1) as f32).collect();
+            let y = r.top() + 16.0;
+            let target = done as f32 / (n - 1) as f32;
+            let frac = ui::smooth(ctx, Id::new(("setup", &e.id)), target, 5.0);
+            ui::progress_line(p, pos2(xs[0], y), pos2(xs[n - 1], y), frac, 3.0, !all);
+            for i in 0..n {
+                let (label, state) = if i < items.len() {
+                    (items[i].0, if i < done { ui::Node::Done } else if i == done { ui::Node::Current } else { ui::Node::Upcoming })
+                } else {
+                    ("Ready", if all { ui::Node::Live } else { ui::Node::Upcoming })
+                };
+                let num = (i + 1).to_string();
+                ui::node(p, pos2(xs[i], y), 11.0, state, if matches!(state, ui::Node::Current | ui::Node::Upcoming) { Some(num.as_str()) } else { None }, time);
+                let col = match state {
+                    ui::Node::Done => TEXT,
+                    ui::Node::Live => GREEN,
+                    ui::Node::Current => ui::SAND,
+                    _ => DIM,
+                };
+                p.text(pos2(xs[i], y + 28.0), Align2::CENTER_CENTER, label, ui::semi(11.5), col);
+            }
+        });
+    }
+
     fn icon_card(&mut self, ui: &mut Ui, ctx: &Context, e: &Experience, which: Drop, w: f32) {
         let hovering = ctx.input(|i| !i.raw.hovered_files.is_empty());
-        let resp = ui::card().show(ui, |ui| {
+        let resp = ui::spot(ui, ui::card(), |ui| {
             ui.set_width(w - 32.0);
             ui.horizontal_top(|ui| {
                 let name = if which == Drop::Current { e.current_icon.clone() } else { e.new_icon.clone() };
@@ -1105,7 +1150,7 @@ impl App {
                 // background: gradient plus two slowly drifting lights, all inside the rounded card
                 let c1 = rect.left_top() + vec2(rect.width() * (0.22 + 0.08 * (time * 0.45).sin()), rect.height() * (0.1 + 0.25 * (time * 0.6).cos()));
                 let c2 = rect.right_bottom() - vec2(rect.width() * (0.28 + 0.1 * (time * 0.35).cos()), rect.height() * (0.15 + 0.2 * (time * 0.5).sin()));
-                p.add(rrect_field(rect, 16.0, |pt| {
+                p.add(ui::rrect_field(rect, 16.0, |pt| {
                     let tx = ((pt.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
                     let ty = ((pt.y - rect.top()) / rect.height()).clamp(0.0, 1.0);
                     let base = bg1.lerp_to_gamma(bg2, (tx * 0.85 + ty * 0.3).min(1.0));
@@ -1130,7 +1175,11 @@ impl App {
                     kx += 15.0;
                 }
                 p.text(pos2(kx, rect.top() + 26.0), Align2::LEFT_CENTER, &k, ui::bold(11.0), k_col);
-                p.text(pos2(x - 1.0, rect.top() + 56.0), Align2::LEFT_CENTER, &big, ui::bold(32.0), TEXT);
+                if u.status.active() && u.status != Status::Restoring {
+                    ui::shine_text(&p, pos2(x - 1.0, rect.top() + 56.0), Align2::LEFT_CENTER, &big, ui::bold(34.0), ctx.input(|i| i.time));
+                } else {
+                    p.text(pos2(x - 1.0, rect.top() + 56.0), Align2::LEFT_CENTER, &big, ui::bold(32.0), TEXT);
+                }
                 p.text(pos2(x, rect.top() + 87.0), Align2::LEFT_CENTER, &meta, ui::reg(12.8), Color32::from_rgb(178, 172, 214));
                 // progress toward the update
                 let frac = match u.status {
@@ -1158,7 +1207,15 @@ impl App {
                         ui::glow(&p, ir.center() + vec2(0.0, 8.0), 70.0, Color32::from_rgba_unmultiplied(0, 0, 0, 70));
                         egui::Image::new(&t).corner_radius(14).paint_at(ui, ir);
                         p.rect_stroke(ir, 14, Stroke::new(1.0, Color32::from_white_alpha(30)), StrokeKind::Inside);
-                        p.text(pos2(ir.center().x, ir.bottom() + 12.0), Align2::CENTER_CENTER, lab, ui::reg(11.5), Color32::from_rgb(168, 163, 201));
+                        let _ = lab;
+                        // badge on the icon, like the website countdown
+                        let badge = if u.status == Status::Done { "Live".to_string() } else { u.live_step().map(|s| s.label.clone()).unwrap_or_else(|| "Now".into()) };
+                        let g = p.layout_no_wrap(badge.clone(), ui::bold(10.5), Color32::WHITE);
+                        let br = Rect::from_min_size(pos2(ir.right() - g.size().x - 12.0, ir.top() - 8.0), vec2(g.size().x + 16.0, 20.0));
+                        let (ba, bb) = if u.status == Status::Done { (GREEN, Color32::from_rgb(79, 214, 232)) } else { (ui::GRAD_A, ui::GRAD_B) };
+                        p.add(ui::brand_rrect(br.expand(2.0).translate(vec2(0.0, 2.0)), 12.0, ba.gamma_multiply(0.35), bb.gamma_multiply(0.35)));
+                        p.add(ui::brand_rrect(br, 10.0, ba, bb));
+                        p.text(br.center(), Align2::CENTER_CENTER, badge, ui::bold(10.5), if u.status == Status::Done { Color32::from_rgb(6, 36, 24) } else { Color32::WHITE });
                     }
                 }
                 ui.add_space(22.0);
@@ -1172,42 +1229,88 @@ impl App {
                         ui::draw_icon(ui.painter(), Icon::External, r, ACCENT_TXT);
                     });
                 });
-                ui::card().inner_margin(Margin::symmetric(0, 6)).show(ui, |ui| {
+                ui::spot(ui, ui::card().inner_margin(Margin::symmetric(0, 8)), |ui| {
                     ui.set_width(ui.available_width());
-                    for (si, s) in u.visible().enumerate() {
+                    let time = ctx.input(|i| i.time);
+                    let rail_idx = ui.painter().add(egui::Shape::Noop);
+                    let steps: Vec<Step> = u.visible().cloned().collect();
+                    let mut dots: Vec<Pos2> = Vec::new();
+                    let live_i = steps.iter().rposition(|s| matches!(s.apply, Apply::Live | Apply::Done));
+                    for (si, s) in steps.iter().enumerate() {
                         let fade = ui::appear(ctx, 0.1 + 0.05 * si as f32);
                         ui.scope(|ui| {
-                        ui.multiply_opacity(fade);
-                        Frame::NONE.inner_margin(Margin::symmetric(18, 7)).show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                match me.tex(ctx, &s.image) {
-                                    Some(t) => {
-                                        ui::img(ui, &t, 40.0, 9);
+                            ui.multiply_opacity(fade);
+                            Frame::NONE.inner_margin(Margin::symmetric(18, 9)).show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    // timeline rail dot
+                                    let (dr, _) = ui.allocate_exact_size(vec2(26.0, 44.0), Sense::hover());
+                                    let state = if live_i == Some(si) {
+                                        if u.status == Status::Done || s.apply == Apply::Live { ui::Node::Live } else { ui::Node::Done }
+                                    } else if matches!(s.apply, Apply::Done) {
+                                        ui::Node::Done
+                                    } else if matches!(s.apply, Apply::Skipped) {
+                                        ui::Node::Skipped
+                                    } else if matches!(s.apply, Apply::Error) {
+                                        ui::Node::Error
+                                    } else if live_i.map_or(si == 0, |l| si == l + 1) && u.status.active() {
+                                        ui::Node::Current
+                                    } else {
+                                        ui::Node::Upcoming
+                                    };
+                                    dots.push(dr.center());
+                                    ui::node(ui.painter(), dr.center(), 9.0, state, None, time);
+                                    ui.add_space(4.0);
+                                    match me.tex(ctx, &s.image) {
+                                        Some(t) => {
+                                            ui::img(ui, &t, 44.0, 10);
+                                        }
+                                        None => {
+                                            ui::placeholder(ui, 44.0, 10);
+                                        }
                                     }
-                                    None => {
-                                        ui::placeholder(ui, 40.0, 9);
-                                    }
-                                }
-                                ui.add_space(4.0);
-                                ui.allocate_ui_with_layout(vec2(160.0, 40.0), Layout::top_down(Align::Min), |ui| {
-                                    ui.spacing_mut().item_spacing.y = 0.0;
-                                    ui.add_space(2.0);
-                                    ui.label(RichText::new(&s.label).font(ui::bold(13.0)));
-                                    ui.label(RichText::new(s.at.map(fmt_short).unwrap_or_default()).size(11.8).color(DIM));
+                                    ui.add_space(6.0);
+                                    let (tr, _) = ui.allocate_exact_size(vec2(170.0, 44.0), Sense::hover());
+                                    ui.painter().text(pos2(tr.left(), tr.top() + 14.0), Align2::LEFT_CENTER, &s.label, ui::bold(13.5), TEXT);
+                                    ui.painter().text(pos2(tr.left(), tr.top() + 32.0), Align2::LEFT_CENTER, s.at.map(fmt_short).unwrap_or_default(), ui::reg(11.8), DIM);
+                                    step_progress(ui, s, now, time);
                                 });
-                                ui.spacing_mut().item_spacing.x = 6.0;
-                                step_chips(ui, s, now);
-                            });
-                            if let Some(err) = &s.error {
-                                if !matches!(s.apply, Apply::Done | Apply::Live | Apply::Skipped) {
-                                    ui.horizontal(|ui| {
-                                        ui.add_space(52.0);
-                                        ui.add(egui::Label::new(RichText::new(err).size(11.8).color(RED)).wrap());
-                                    });
+                                if let Some(err) = &s.error {
+                                    if !matches!(s.apply, Apply::Done | Apply::Live | Apply::Skipped) {
+                                        ui.horizontal(|ui| {
+                                            ui.add_space(84.0);
+                                            ui.add(egui::Label::new(RichText::new(err).size(11.8).color(RED)).wrap());
+                                        });
+                                    }
                                 }
+                            });
+                        });
+                    }
+                    // the rail behind the dots fills up to "now", like the website timeline
+                    if dots.len() >= 2 {
+                        let (first, last) = (dots[0], *dots.last().unwrap());
+                        let pos_y = match live_i {
+                            Some(l) if l + 1 < steps.len() => {
+                                let (a, b) = (steps[l].at.unwrap_or(now), steps[l + 1].at.unwrap_or(now));
+                                let f = ((now - a) as f32 / (b - a).max(1) as f32).clamp(0.0, 1.0);
+                                if u.status.active() { dots[l].y + (dots[l + 1].y - dots[l].y) * f } else { dots[l].y }
                             }
-                        });
-                        });
+                            Some(_) => last.y,
+                            None => first.y,
+                        };
+                        let target = ((pos_y - first.y) / (last.y - first.y)).clamp(0.0, 1.0);
+                        let frac = ui::smooth(ctx, Id::new(("rail", &u.id)), target, 5.0);
+                        let p = ui.painter().clone();
+                        // drawn into the slot reserved before the rows, so it sits behind the dots
+                        let mut v = Vec::new();
+                        let track = Rect::from_min_max(pos2(first.x - 1.0, first.y), pos2(first.x + 1.0, last.y));
+                        v.push(egui::Shape::rect_filled(track, 1.0, Color32::from_white_alpha(20)));
+                        let end_y = first.y + (last.y - first.y) * frac;
+                        if end_y > first.y + 0.5 {
+                            let fill = Rect::from_min_max(pos2(first.x - 1.0, first.y), pos2(first.x + 1.0, end_y));
+                            v.push(ui::grad_rrect(fill, 1.0, |_, ty| ui::SAND.lerp_to_gamma(ui::PINK, ty)));
+                            v.push(ui::grad_rrect(fill.expand2(vec2(3.0, 0.0)), 3.0, |_, _| Color32::from_rgba_unmultiplied(244, 96, 164, 26)));
+                        }
+                        p.set(rail_idx, egui::Shape::Vec(v));
                     }
                 });
                 if !u.log.is_empty() {
@@ -1257,7 +1360,7 @@ impl App {
                 ts.sort_by(|a, b| b.hours.partial_cmp(&a.hours).unwrap_or(std::cmp::Ordering::Equal));
                 for t in &ts {
                     let tex = self.comp_tex(ctx, e.current_icon.as_ref(), t);
-                    let r = ui::card().inner_margin(Margin::same(12)).show(ui, |ui| {
+                    let r = ui::spot(ui, ui::card().inner_margin(Margin::same(12)), |ui| {
                         ui.set_width(136.0);
                         ui.vertical(|ui| {
                             ui.horizontal(|ui| {
@@ -1334,7 +1437,7 @@ impl App {
                     }
                 });
             });
-            ui::card().inner_margin(Margin::symmetric(0, 4)).show(ui, |ui| {
+            ui::spot(ui, ui::card().inner_margin(Margin::symmetric(0, 4)), |ui| {
                 ui.set_width(ui.available_width());
                 for p in &e.places {
                     Frame::NONE.inner_margin(Margin::symmetric(16, 9)).show(ui, |ui| {
@@ -1365,7 +1468,7 @@ impl App {
             ui.label(RichText::new("Each place you tick gets the countdown icons. The start place's icon is the one shown on the experience page.").size(12.0).color(DIM));
             ui.add_space(22.0);
             ui::section_label(ui, "Roblox access");
-            ui::card().show(ui, |ui| {
+            ui::spot(ui, ui::card(), |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -1387,7 +1490,7 @@ impl App {
             });
             ui.add_space(22.0);
             ui::section_label(ui, "Danger zone");
-            ui::card().show(ui, |ui| {
+            ui::spot(ui, ui::card(), |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
@@ -1412,15 +1515,13 @@ impl App {
             let (r, _) = ui.allocate_exact_size(Vec2::splat(64.0), Sense::hover());
             ui::logo(ui.painter(), r);
             ui.add_space(14.0);
-            ui.horizontal(|ui| {
-                let g1 = ui.painter().layout_no_wrap("Ro".into(), ui::bold(34.0), TEXT);
-                let g2 = ui.painter().layout_no_wrap("icon".into(), ui::bold(34.0), ACCENT_TXT);
-                let total = g1.size().x + g2.size().x;
-                ui.add_space((ui.available_width() - total) / 2.0);
-                ui.spacing_mut().item_spacing.x = 0.0;
-                ui.label(RichText::new("Ro").font(ui::bold(34.0)));
-                ui.label(RichText::new("icon").font(ui::bold(34.0)).color(Color32::from_rgb(132, 140, 255)));
-            });
+            {
+                // "Your icon / counts down." headline, like the website
+                let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 92.0), Sense::hover());
+                let p = ui.painter();
+                p.text(pos2(r.center().x, r.top() + 22.0), Align2::CENTER_CENTER, "Your icon", ui::bold(38.0), TEXT);
+                ui::shine_text(p, pos2(r.center().x, r.top() + 66.0), Align2::CENTER_CENTER, "counts down.", ui::bold(38.0), ui.input(|i| i.time));
+            }
             ui.label(RichText::new("Countdown icons for Roblox. On autopilot.").size(14.5).color(MUTED));
             ui.add_space(26.0);
             ui.horizontal(|ui| {
@@ -1428,7 +1529,7 @@ impl App {
                 ui.add_space((ui.available_width() - total) / 2.0);
                 ui.spacing_mut().item_spacing.x = 12.0;
                 for (i, (t, s, done)) in [("Connect Roblox", "Sign in and pick your account.", has_key), ("Add an experience", "Universe ID, place ID or game link.", false), ("Plan the update", "Pick icons and a time. Launch.", false)].iter().enumerate() {
-                    ui::card().inner_margin(Margin::same(14)).show(ui, |ui| {
+                    ui::spot(ui, ui::card().inner_margin(Margin::same(14)), |ui| {
                         ui.set_width(182.0);
                         ui.vertical(|ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
@@ -2168,41 +2269,6 @@ fn dashed_rect(p: &egui::Painter, r: Rect, col: Color32) {
     }
 }
 
-/// Gradient (a → b left to right, lighter at the bottom left) filling a rounded rect
-/// with corner radius `rad`, so the corners stay round.
-fn hgrad_rounded(r: Rect, a: Color32, b: Color32, rad: f32) -> egui::Shape {
-    let rad = rad.min(r.width() / 2.0).min(r.height() / 2.0);
-    let color_at = |p: Pos2| {
-        let tx = ((p.x - r.left()) / r.width()).clamp(0.0, 1.0);
-        let ty = ((p.y - r.top()) / r.height()).clamp(0.0, 1.0);
-        let left = a.lerp_to_gamma(a.lerp_to_gamma(b, 0.35), ty);
-        left.lerp_to_gamma(b, tx)
-    };
-    let mut pts = Vec::new();
-    let corners = [
-        (pos2(r.right() - rad, r.top() + rad), -90.0f32),
-        (pos2(r.right() - rad, r.bottom() - rad), 0.0),
-        (pos2(r.left() + rad, r.bottom() - rad), 90.0),
-        (pos2(r.left() + rad, r.top() + rad), 180.0),
-    ];
-    for (c, start) in corners {
-        for i in 0..=12 {
-            let ang = (start + 90.0 * i as f32 / 12.0).to_radians();
-            pts.push(c + vec2(ang.cos(), ang.sin()) * rad);
-        }
-    }
-    let mut mesh = egui::Mesh::default();
-    mesh.colored_vertex(r.center(), color_at(r.center()));
-    for p in &pts {
-        mesh.colored_vertex(*p, color_at(*p));
-    }
-    let n = pts.len() as u32;
-    for i in 0..n {
-        mesh.add_triangle(0, 1 + i, 1 + (i + 1) % n);
-    }
-    egui::Shape::mesh(mesh)
-}
-
 fn tile(ui: &mut Ui, tex: Option<&TextureHandle>, label: &str, time: &str, final_: bool, past: bool, fade: f32) {
     let (slot, resp) = ui.allocate_exact_size(vec2(116.0, 150.0), Sense::hover());
     let hv = ui::hover_amt(ui.ctx(), resp.id, resp.hovered());
@@ -2236,58 +2302,90 @@ fn tile(ui: &mut Ui, tex: Option<&TextureHandle>, label: &str, time: &str, final
     p.text(pos2(rect.center().x, ir.bottom() + 31.0), Align2::CENTER_CENTER, time, ui::reg(10.8), DIM.gamma_multiply(op));
 }
 
-/// Rounded rect filled by a colour field (sampled on concentric rings), for
-/// smooth radial lights that stay inside the rounded corners.
-fn rrect_field(r: Rect, rad: f32, f: impl Fn(Pos2) -> Color32) -> egui::Shape {
-    let rad = rad.min(r.width() / 2.0).min(r.height() / 2.0);
-    let corners = [
-        (pos2(r.right() - rad, r.top() + rad), -90.0f32),
-        (pos2(r.right() - rad, r.bottom() - rad), 0.0),
-        (pos2(r.left() + rad, r.bottom() - rad), 90.0),
-        (pos2(r.left() + rad, r.top() + rad), 180.0),
-    ];
-    let mut edge = Vec::new();
-    for (c, start) in corners {
-        for i in 0..=6 {
-            let a = (start + 15.0 * i as f32).to_radians();
-            edge.push(c + vec2(a.cos(), a.sin()) * rad);
+/// Upload -> Approval -> Live as a small website-style progress track.
+fn step_progress(ui: &mut Ui, s: &Step, _now: i64, time: f64) {
+    use ui::Node;
+    let up = match s.upload {
+        Upload::Done => Node::Done,
+        Upload::Uploading => Node::Current,
+        Upload::Error => Node::Error,
+        Upload::Skipped => Node::Skipped,
+        Upload::Pending => Node::Upcoming,
+    };
+    let approve = if s.upload == Upload::Done {
+        match s.moderation.as_str() {
+            "Approved" => Node::Done,
+            "Rejected" => Node::Error,
+            _ => Node::Current,
         }
+    } else if s.upload == Upload::Skipped {
+        Node::Skipped
+    } else {
+        Node::Upcoming
+    };
+    let live = match s.apply {
+        Apply::Live => Node::Live,
+        Apply::Done => Node::Done,
+        Apply::Waiting | Apply::Retrying => Node::Current,
+        Apply::Error => Node::Error,
+        Apply::Skipped => Node::Skipped,
+        Apply::Upcoming | Apply::Standby => Node::Upcoming,
+    };
+    let up_l = match s.upload {
+        Upload::Done => "Uploaded",
+        Upload::Uploading => "Uploading…",
+        Upload::Error => "Upload failed",
+        Upload::Skipped => "Skipped",
+        Upload::Pending => "Upload",
+    };
+    let ap_l = match approve {
+        Node::Done => "Approved",
+        Node::Error => "Rejected",
+        Node::Current => "In moderation",
+        Node::Skipped => "Skipped",
+        _ => "Approval",
+    };
+    let lv_l = match s.apply {
+        Apply::Live => "Live now".to_string(),
+        Apply::Done => if s.key == "new" { "Applied".into() } else { "Done".into() },
+        Apply::Waiting => "Waiting for approval".into(),
+        Apply::Retrying => "Retrying".into(),
+        Apply::Error => "Failed".into(),
+        Apply::Skipped => "Skipped".into(),
+        Apply::Standby => "Only if cancelled".into(),
+        Apply::Upcoming => s.at.map(|t| format!("Goes live {}", local(t).format(clock()))).unwrap_or_else(|| "Goes live".into()),
+    };
+    let w = (ui.available_width() - 8.0).clamp(240.0, 640.0);
+    let (r, _) = ui.allocate_exact_size(vec2(w, 44.0), Sense::hover());
+    let p = ui.painter();
+    let y = r.top() + 15.0;
+    let xs = [r.left() + 14.0, r.left() + w * 0.5, r.right() - 14.0];
+    let seg = |a: Node| match a {
+        Node::Done | Node::Live | Node::Skipped => 1.0,
+        Node::Current => 0.5,
+        _ => 0.0,
+    };
+    // segments fill as each stage completes; a moving glint shows work in progress
+    let f1 = ui::smooth(ui.ctx(), ui.id().with(("seg1", &s.key)), if up == Node::Done || up == Node::Skipped { 1.0 } else { seg(up) * 0.4 }, 6.0);
+    let f2 = ui::smooth(ui.ctx(), ui.id().with(("seg2", &s.key)), if matches!(approve, Node::Done | Node::Skipped) { 1.0 } else if approve == Node::Current { 0.45 } else { 0.0 }, 6.0);
+    ui::progress_line(p, pos2(xs[0] + 11.0, y), pos2(xs[1] - 11.0, y), f1, 3.0, up == Node::Current);
+    ui::progress_line(p, pos2(xs[1] + 11.0, y), pos2(xs[2] - 11.0, y), f2, 3.0, approve == Node::Current);
+    for (i, (st, lab)) in [(up, up_l.to_string()), (approve, ap_l.to_string()), (live, lv_l)].into_iter().enumerate() {
+        ui::node(p, pos2(xs[i], y), 8.0, st, None, time);
+        let col = match st {
+            Node::Done => TEXT,
+            Node::Live => GREEN,
+            Node::Current => ui::SAND,
+            Node::Error => RED,
+            _ => DIM,
+        };
+        let align = match i { 0 => Align2::LEFT_CENTER, 1 => Align2::CENTER_CENTER, _ => Align2::RIGHT_CENTER };
+        let x = match i { 0 => xs[0] - 8.0, 1 => xs[1], _ => xs[2] + 8.0 };
+        p.text(pos2(x, y + 21.0), align, lab, ui::semi(11.0), col);
     }
-    // extra points along the long edges so lights sample smoothly
-    let mut pts = Vec::new();
-    for i in 0..edge.len() {
-        let (a, b) = (edge[i], edge[(i + 1) % edge.len()]);
-        let n = ((a.distance(b) / 40.0) as usize).max(1);
-        for k in 0..n {
-            pts.push(a.lerp(b, k as f32 / n as f32));
-        }
-    }
-    let ctr = r.center();
-    let rings = 7;
-    let mut mesh = egui::Mesh::default();
-    mesh.colored_vertex(ctr, f(ctr));
-    let n = pts.len() as u32;
-    for j in 1..=rings {
-        let t = j as f32 / rings as f32;
-        for p in &pts {
-            let q = ctr.lerp(*p, t);
-            mesh.colored_vertex(q, f(q));
-        }
-    }
-    for i in 0..n {
-        mesh.add_triangle(0, 1 + i, 1 + (i + 1) % n);
-    }
-    for j in 1..rings as u32 {
-        let (a0, b0) = (1 + (j - 1) * n, 1 + j * n);
-        for i in 0..n {
-            let i1 = (i + 1) % n;
-            mesh.add_triangle(a0 + i, b0 + i, b0 + i1);
-            mesh.add_triangle(a0 + i, b0 + i1, a0 + i1);
-        }
-    }
-    egui::Shape::mesh(mesh)
 }
 
+#[allow(dead_code)]
 fn step_chips(ui: &mut Ui, s: &Step, _now: i64) {
     match s.upload {
         Upload::Pending => ui::chip(ui, ChipKind::Grey, false, false, "Queued"),
@@ -2334,7 +2432,41 @@ impl eframe::App for App {
         let tt = ctx.input(|i| i.time) as f32;
         ui::glow(&bgp, sr.left_top() + vec2(-40.0 + 90.0 * (tt * 0.11).sin(), -60.0 + 70.0 * (tt * 0.09).cos()), 780.0, Color32::from_rgba_unmultiplied(120, 90, 255, 54));
         ui::glow(&bgp, sr.right_bottom() + vec2(60.0 + 80.0 * (tt * 0.08).cos(), 80.0 + 60.0 * (tt * 0.12).sin()), 640.0, Color32::from_rgba_unmultiplied(244, 96, 164, 22));
-        ui::glow(&bgp, pos2(sr.center().x + sr.width() * 0.25 * (tt * 0.05).sin(), sr.bottom() + 120.0), 520.0, Color32::from_rgba_unmultiplied(255, 170, 80, 10));
+        ui::glow(&bgp, pos2(sr.center().x + sr.width() * 0.25 * (tt * 0.05).sin(), sr.bottom() + 60.0), 560.0, Color32::from_rgba_unmultiplied(255, 165, 80, 20));
+        // faint grid that fades out from the top, like the website
+        {
+            let step = 56.0;
+            let fade_h = sr.height() * 0.6;
+            let mut mesh = egui::Mesh::default();
+            let mut quad = |a: Pos2, b: Pos2, ca: Color32, cb: Color32, vertical: bool| {
+                let i = mesh.vertices.len() as u32;
+                let (d1, d2) = if vertical { (vec2(-0.5, 0.0), vec2(0.5, 0.0)) } else { (vec2(0.0, -0.5), vec2(0.0, 0.5)) };
+                mesh.colored_vertex(a + d1, ca);
+                mesh.colored_vertex(a + d2, ca);
+                mesh.colored_vertex(b + d1, cb);
+                mesh.colored_vertex(b + d2, cb);
+                mesh.add_triangle(i, i + 1, i + 2);
+                mesh.add_triangle(i + 1, i + 2, i + 3);
+            };
+            let alpha_at = |x: f32, y: f32| {
+                let fx = 1.0 - ((x - sr.center().x) / (sr.width() * 0.7)).abs().min(1.0);
+                let fy = 1.0 - (y - sr.top()) / fade_h;
+                (9.0 * fx * fy.clamp(0.0, 1.0)) as u8
+            };
+            let mut x = sr.left() + (sr.width() / 2.0) % step;
+            while x < sr.right() {
+                quad(pos2(x, sr.top()), pos2(x, sr.top() + fade_h), Color32::from_white_alpha(alpha_at(x, sr.top())), Color32::TRANSPARENT, true);
+                x += step;
+            }
+            let mut y = sr.top() + step;
+            while y < sr.top() + fade_h {
+                let a = alpha_at(sr.center().x, y);
+                quad(pos2(sr.left(), y), pos2(sr.center().x, y), Color32::TRANSPARENT, Color32::from_white_alpha(a), false);
+                quad(pos2(sr.center().x, y), pos2(sr.right(), y), Color32::from_white_alpha(a), Color32::TRANSPARENT, false);
+                y += step;
+            }
+            bgp.add(egui::Shape::mesh(mesh));
+        }
 
         self.drop_rects.clear();
         self.titlebar(ctx);
