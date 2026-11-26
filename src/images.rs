@@ -293,6 +293,18 @@ pub fn default_overlay(label: &str) -> Pixmap {
 }
 
 /// Overlay (custom PNG or default) on top of the base icon. Returns RGBA pixels.
+/// Hand-made countdown overlays (white art on transparent, 1024×1024) for the
+/// standard timers. Used when a timer's text is exactly "12 Hours", "6 Hours", "3 Hours" or "1 Hour".
+fn builtin_overlay(label: &str) -> Option<&'static [u8]> {
+    match label.trim().to_lowercase().as_str() {
+        "12 hours" => Some(include_bytes!("../assets/overlays/12h.png")),
+        "6 hours" => Some(include_bytes!("../assets/overlays/6h.png")),
+        "3 hours" => Some(include_bytes!("../assets/overlays/3h.png")),
+        "1 hour" => Some(include_bytes!("../assets/overlays/1h.png")),
+        _ => None,
+    }
+}
+
 pub fn composite(base_png: Option<&[u8]>, overlay_png: Option<&[u8]>, label: &str) -> image::RgbaImage {
     let mut pm = match base_png.and_then(|b| decode(b).ok()) {
         Some(img) => to_pixmap(&image::imageops::resize(&img, SIZE, SIZE, FilterType::Lanczos3)),
@@ -304,7 +316,17 @@ pub fn composite(base_png: Option<&[u8]>, overlay_png: Option<&[u8]>, label: &st
     };
     let over = match overlay_png.and_then(|b| decode(b).ok()) {
         Some(o) => to_pixmap(&image::imageops::resize(&o, SIZE, SIZE, FilterType::Lanczos3)),
-        None => default_overlay(label),
+        None => match builtin_overlay(label).and_then(|b| decode(b).ok()) {
+            // Bundled artwork for 12h / 6h / 3h / 1h, on a dimmed icon.
+            Some(o) => {
+                let mut p = Pixmap::new(SIZE, SIZE).unwrap();
+                p.fill(Color::from_rgba8(0, 0, 0, 96));
+                let art = to_pixmap(&image::imageops::resize(&o, SIZE, SIZE, FilterType::Lanczos3));
+                p.draw_pixmap(0, 0, art.as_ref(), &PixmapPaint::default(), Transform::identity(), None);
+                p
+            }
+            None => default_overlay(label),
+        },
     };
     pm.draw_pixmap(0, 0, over.as_ref(), &PixmapPaint::default(), Transform::identity(), None);
     pixmap_to_rgba(&pm)
