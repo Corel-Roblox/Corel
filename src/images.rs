@@ -1,0 +1,298 @@
+//! Icon images: square 512x512 icons, default countdown overlays (hourglass +
+//! label), and compositing an overlay on top of the current icon.
+
+use ab_glyph::{Font, FontVec, OutlineCurve, ScaleFont};
+use image::imageops::FilterType;
+use tiny_skia::{Color, FillRule, LineCap, LineJoin, Paint, PathBuilder, Pixmap, PixmapPaint, Stroke, Transform};
+
+pub const SIZE: u32 = 512;
+
+fn to_pixmap(img: &image::RgbaImage) -> Pixmap {
+    let mut data = img.as_raw().clone();
+    for px in data.chunks_exact_mut(4) {
+        let a = px[3] as u16;
+        for c in &mut px[..3] {
+            *c = ((*c as u16 * a + 127) / 255) as u8;
+        }
+    }
+    Pixmap::from_vec(data, tiny_skia::IntSize::from_wh(img.width(), img.height()).unwrap()).unwrap()
+}
+
+pub fn decode(bytes: &[u8]) -> Result<image::RgbaImage, String> {
+    image::load_from_memory(bytes).map(|i| i.to_rgba8()).map_err(|_| "That file is not an image this app can read (use PNG, JPG or WebP).".to_string())
+}
+
+pub fn encode_png(img: &image::RgbaImage) -> Vec<u8> {
+    let mut out = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(img.clone()).write_to(&mut out, image::ImageFormat::Png).expect("png encode");
+    out.into_inner()
+}
+
+/// Roblox rejects non-square icons: crop the centre square and scale to 512.
+pub fn square_icon(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let img = decode(bytes)?;
+    let s = img.width().min(img.height());
+    let crop = image::imageops::crop_imm(&img, (img.width() - s) / 2, (img.height() - s) / 2, s, s).to_image();
+    Ok(encode_png(&image::imageops::resize(&crop, SIZE, SIZE, FilterType::Lanczos3)))
+}
+
+/// Overlays keep transparency; fit inside 512x512.
+pub fn fit_overlay(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let img = decode(bytes)?;
+    let k = (SIZE as f32 / img.width() as f32).min(SIZE as f32 / img.height() as f32);
+    let (w, h) = (((img.width() as f32 * k).round() as u32).max(1), ((img.height() as f32 * k).round() as u32).max(1));
+    let small = image::imageops::resize(&img, w, h, FilterType::Lanczos3);
+    let mut canvas = image::RgbaImage::new(SIZE, SIZE);
+    image::imageops::overlay(&mut canvas, &small, ((SIZE - w) / 2) as i64, ((SIZE - h) / 2) as i64);
+    Ok(encode_png(&canvas))
+}
+
+fn font() -> Option<&'static FontVec> {
+    static F: std::sync::OnceLock<Option<FontVec>> = std::sync::OnceLock::new();
+    F.get_or_init(|| {
+        let dir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".into());
+        for f in ["ariblk.ttf", "seguibl.ttf", "arialbd.ttf", "segoeuib.ttf"] {
+            if let Ok(b) = std::fs::read(format!("{dir}\\Fonts\\{f}")) {
+                if let Ok(font) = FontVec::try_from_vec(b) {
+                    return Some(font);
+                }
+            }
+        }
+        None
+    })
+    .as_ref()
+}
+
+fn text_path(text: &str, px: f32, cx: f32, baseline: f32) -> Option<(tiny_skia::Path, f32)> {
+    let font = font()?;
+    let scaled = font.as_scaled(px);
+    let scale = px / font.units_per_em()?;
+    let mut width = 0.0;
+    let mut prev = None;
+    let ids: Vec<_> = text.chars().map(|c| font.glyph_id(c)).collect();
+    for &id in &ids {
+        if let Some(p) = prev {
+            width += scaled.kern(p, id);
+        }
+        width += scaled.h_advance(id);
+        prev = Some(id);
+    }
+    let mut pb = PathBuilder::new();
+    let mut x = cx - width / 2.0;
+    prev = None;
+    for &id in &ids {
+        if let Some(p) = prev {
+            x += scaled.kern(p, id);
+        }
+        if let Some(outline) = font.outline(id) {
+            let mut last: Option<ab_glyph::Point> = None;
+            let tx = |p: ab_glyph::Point| (x + p.x * scale, baseline - p.y * scale);
+            for curve in &outline.curves {
+                let (start, end) = match curve {
+                    OutlineCurve::Line(a, b) => (*a, *b),
+                    OutlineCurve::Quad(a, _, b) => (*a, *b),
+                    OutlineCurve::Cubic(a, _, _, b) => (*a, *b),
+                };
+                if last.map_or(true, |l| (l.x - start.x).abs() > 0.01 || (l.y - start.y).abs() > 0.01) {
+                    if last.is_some() {
+                        pb.close();
+                    }
+                    let (sx, sy) = tx(start);
+                    pb.move_to(sx, sy);
+                }
+                match curve {
+                    OutlineCurve::Line(_, b) => {
+                        let (bx, by) = tx(*b);
+                        pb.line_to(bx, by)
+                    }
+                    OutlineCurve::Quad(_, c, b) => {
+                        let ((cx1, cy1), (bx, by)) = (tx(*c), tx(*b));
+                        pb.quad_to(cx1, cy1, bx, by)
+                    }
+                    OutlineCurve::Cubic(_, c1, c2, b) => {
+                        let ((ax, ay), (bx1, by1), (bx, by)) = (tx(*c1), tx(*c2), tx(*b));
+                        pb.cubic_to(ax, ay, bx1, by1, bx, by)
+                    }
+                }
+                last = Some(end);
+            }
+            if last.is_some() {
+                pb.close();
+            }
+        }
+        x += scaled.h_advance(id);
+        prev = Some(id);
+    }
+    pb.finish().map(|p| (p, width))
+}
+
+fn paint(c: Color) -> Paint<'static> {
+    let mut p = Paint::default();
+    p.set_color(c);
+    p.anti_alias = true;
+    p
+}
+
+fn hourglass(pm: &mut Pixmap, cx: f32, cy: f32, h: f32) {
+    let w = h * 0.62;
+    let (top, bot, bar, neck) = (cy - h / 2.0, cy + h / 2.0, h * 0.1, w * 0.09);
+    let mut pb = PathBuilder::new();
+    pb.move_to(cx - w * 0.42, top + bar);
+    pb.line_to(cx + w * 0.42, top + bar);
+    pb.cubic_to(cx + w * 0.42, cy - h * 0.16, cx + neck, cy - h * 0.06, cx + neck, cy);
+    pb.cubic_to(cx + neck, cy + h * 0.06, cx + w * 0.42, cy + h * 0.16, cx + w * 0.42, bot - bar);
+    pb.line_to(cx - w * 0.42, bot - bar);
+    pb.cubic_to(cx - w * 0.42, cy + h * 0.16, cx - neck, cy + h * 0.06, cx - neck, cy);
+    pb.cubic_to(cx - neck, cy - h * 0.06, cx - w * 0.42, cy - h * 0.16, cx - w * 0.42, top + bar);
+    pb.close();
+    let glass = pb.finish().unwrap();
+    let st = |wd: f32| Stroke { width: wd, line_cap: LineCap::Round, line_join: LineJoin::Round, ..Default::default() };
+    pm.stroke_path(&glass, &paint(Color::from_rgba8(17, 17, 17, 255)), &st(h * 0.16), Transform::identity(), None);
+    pm.stroke_path(&glass, &paint(Color::WHITE), &st(h * 0.075), Transform::identity(), None);
+    // sand
+    let mut s = PathBuilder::new();
+    s.move_to(cx - w * 0.26, top + bar + h * 0.1);
+    s.line_to(cx + w * 0.26, top + bar + h * 0.1);
+    s.line_to(cx, cy - h * 0.04);
+    s.close();
+    s.move_to(cx, cy + h * 0.14);
+    s.line_to(cx + w * 0.3, bot - bar - h * 0.05);
+    s.line_to(cx - w * 0.3, bot - bar - h * 0.05);
+    s.close();
+    pm.fill_path(&s.finish().unwrap(), &paint(Color::WHITE), FillRule::Winding, Transform::identity(), None);
+    // bars
+    for y in [top, bot - bar] {
+        for (pad, col) in [(6.0, Color::from_rgba8(17, 17, 17, 255)), (0.0, Color::WHITE)] {
+            let r = tiny_skia::Rect::from_xywh(cx - w / 2.0 - pad, y - pad, w + pad * 2.0, bar + pad * 2.0).unwrap();
+            let rad = (bar + pad * 2.0) / 2.0;
+            let p = rounded_rect(r, rad);
+            pm.fill_path(&p, &paint(col), FillRule::Winding, Transform::identity(), None);
+        }
+    }
+}
+
+fn rounded_rect(r: tiny_skia::Rect, rad: f32) -> tiny_skia::Path {
+    let (x, y, w, h) = (r.x(), r.y(), r.width(), r.height());
+    let rad = rad.min(w / 2.0).min(h / 2.0);
+    let k = 0.5523 * rad;
+    let mut pb = PathBuilder::new();
+    pb.move_to(x + rad, y);
+    pb.line_to(x + w - rad, y);
+    pb.cubic_to(x + w - rad + k, y, x + w, y + rad - k, x + w, y + rad);
+    pb.line_to(x + w, y + h - rad);
+    pb.cubic_to(x + w, y + h - rad + k, x + w - rad + k, y + h, x + w - rad, y + h);
+    pb.line_to(x + rad, y + h);
+    pb.cubic_to(x + rad - k, y + h, x, y + h - rad + k, x, y + h - rad);
+    pb.line_to(x, y + rad);
+    pb.cubic_to(x, y + rad - k, x + rad - k, y, x + rad, y);
+    pb.close();
+    pb.finish().unwrap()
+}
+
+/// The built-in overlay: dimmed icon, hourglass and a big outlined label.
+pub fn default_overlay(label: &str) -> Pixmap {
+    let mut pm = Pixmap::new(SIZE, SIZE).unwrap();
+    pm.fill(Color::from_rgba8(0, 0, 0, 92));
+    hourglass(&mut pm, 256.0, 214.0, 210.0);
+    let mut px = 92.0;
+    let mut tp = text_path(label, px, 256.0, 440.0);
+    while let Some((_, w)) = &tp {
+        if *w <= 460.0 || px <= 30.0 {
+            break;
+        }
+        px -= 4.0;
+        tp = text_path(label, px, 256.0, 440.0);
+    }
+    if let Some((path, _)) = tp {
+        let st = Stroke { width: px * 0.24, line_join: LineJoin::Round, line_cap: LineCap::Round, ..Default::default() };
+        pm.stroke_path(&path, &paint(Color::from_rgba8(17, 17, 17, 255)), &st, Transform::identity(), None);
+        pm.fill_path(&path, &paint(Color::WHITE), FillRule::Winding, Transform::identity(), None);
+    }
+    pm
+}
+
+/// Overlay (custom PNG or default) on top of the base icon. Returns RGBA pixels.
+pub fn composite(base_png: Option<&[u8]>, overlay_png: Option<&[u8]>, label: &str) -> image::RgbaImage {
+    let mut pm = match base_png.and_then(|b| decode(b).ok()) {
+        Some(img) => to_pixmap(&image::imageops::resize(&img, SIZE, SIZE, FilterType::Lanczos3)),
+        None => {
+            let mut p = Pixmap::new(SIZE, SIZE).unwrap();
+            p.fill(Color::from_rgba8(29, 30, 38, 255));
+            p
+        }
+    };
+    let over = match overlay_png.and_then(|b| decode(b).ok()) {
+        Some(o) => to_pixmap(&image::imageops::resize(&o, SIZE, SIZE, FilterType::Lanczos3)),
+        None => default_overlay(label),
+    };
+    pm.draw_pixmap(0, 0, over.as_ref(), &PixmapPaint::default(), Transform::identity(), None);
+    pixmap_to_rgba(&pm)
+}
+
+pub fn pixmap_to_rgba(pm: &Pixmap) -> image::RgbaImage {
+    let mut data = Vec::with_capacity((pm.width() * pm.height() * 4) as usize);
+    for p in pm.pixels() {
+        let c = p.demultiply();
+        data.extend_from_slice(&[c.red(), c.green(), c.blue(), c.alpha()]);
+    }
+    image::RgbaImage::from_raw(pm.width(), pm.height(), data).unwrap()
+}
+
+/// The app icon (purple rounded square with a clock), at any size.
+pub fn app_icon(size: u32) -> image::RgbaImage {
+    let s = size as f32;
+    let mut pm = Pixmap::new(size, size).unwrap();
+    let r = tiny_skia::Rect::from_xywh(0.0, 0.0, s, s).unwrap();
+    let grad = tiny_skia::LinearGradient::new(
+        tiny_skia::Point::from_xy(0.0, 0.0),
+        tiny_skia::Point::from_xy(s, s),
+        vec![tiny_skia::GradientStop::new(0.0, Color::from_rgba8(125, 109, 255, 255)), tiny_skia::GradientStop::new(1.0, Color::from_rgba8(90, 75, 232, 255))],
+        tiny_skia::SpreadMode::Pad,
+        Transform::identity(),
+    )
+    .unwrap();
+    let mut p = Paint::default();
+    p.shader = grad;
+    p.anti_alias = true;
+    let bg = rounded_rect(r, s * 0.27);
+    pm.fill_path(&bg, &p, FillRule::Winding, Transform::identity(), None);
+    // soft top highlight
+    let hl = tiny_skia::LinearGradient::new(
+        tiny_skia::Point::from_xy(0.0, 0.0),
+        tiny_skia::Point::from_xy(0.0, s * 0.6),
+        vec![tiny_skia::GradientStop::new(0.0, Color::from_rgba8(255, 255, 255, 46)), tiny_skia::GradientStop::new(1.0, Color::from_rgba8(255, 255, 255, 0))],
+        tiny_skia::SpreadMode::Pad,
+        Transform::identity(),
+    )
+    .unwrap();
+    let mut hp = Paint::default();
+    hp.shader = hl;
+    hp.anti_alias = true;
+    pm.fill_path(&bg, &hp, FillRule::Winding, Transform::identity(), None);
+
+    // countdown ring: faint full track + bright arc that is "counting down"
+    let (cx, cy, rad) = (s / 2.0, s / 2.0, s * 0.335);
+    let w = (s * 0.075).max(1.6);
+    let st = Stroke { width: w, line_cap: LineCap::Round, line_join: LineJoin::Round, ..Default::default() };
+    let mut track = PathBuilder::new();
+    track.push_circle(cx, cy, rad);
+    pm.stroke_path(&track.finish().unwrap(), &paint(Color::from_rgba8(255, 255, 255, 60)), &st, Transform::identity(), None);
+    let mut arc = PathBuilder::new();
+    let (start, sweep) = (-std::f32::consts::FRAC_PI_2, std::f32::consts::TAU * 0.78);
+    for i in 0..=96 {
+        let a = start + sweep * i as f32 / 96.0;
+        let (x, y) = (cx + rad * a.cos(), cy + rad * a.sin());
+        if i == 0 { arc.move_to(x, y) } else { arc.line_to(x, y) }
+    }
+    pm.stroke_path(&arc.finish().unwrap(), &paint(Color::WHITE), &st, Transform::identity(), None);
+
+    // the "game icon" tile in the middle, with a bold R
+    let half = s * 0.175;
+    let tile = rounded_rect(tiny_skia::Rect::from_xywh(cx - half, cy - half, half * 2.0, half * 2.0).unwrap(), s * 0.075);
+    pm.fill_path(&tile, &paint(Color::WHITE), FillRule::Winding, Transform::identity(), None);
+    let px = s * 0.27;
+    if let Some((path, _)) = text_path("R", px, cx + s * 0.004, cy + px * 0.36) {
+        pm.fill_path(&path, &paint(Color::from_rgba8(98, 82, 242, 255)), FillRule::Winding, Transform::identity(), None);
+    }
+    pixmap_to_rgba(&pm)
+}

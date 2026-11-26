@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy · Roicon</title>
+  <link rel="icon" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="./"><img src="roicon-logo.png" alt="">Roicon</a>
+      <span class="grow"></span>
+      <a class="link" href="privacy.html">Privacy</a>
+      <a class="link" href="terms.html">Terms</a>
+      <a class="link" href="https://github.com/jakedev2/Roicon">GitHub</a>
+    </nav>
+
+    <main class="doc">
+      <h1>Privacy Policy</h1>
+      <p class="updated">Last updated: November 25, 2026</p>
+
+      <p>Roicon is a Windows desktop app that schedules countdown icons for Roblox experiences. This policy explains what information Roicon uses, where it is kept, and the choices you have. In short: Roicon runs on your computer, talks only to Roblox, and has no servers of its own.</p>
+
+      <h2>Information Roicon uses</h2>
+      <ul>
+        <li><strong>Your Roblox account basics</strong> (user ID, username, display name and avatar picture), received from Roblox when you sign in, so the app can show which account is connected.</li>
+        <li><strong>Which accounts and groups you granted</strong> on Roblox's sign-in page, so the app can show them and upload icons on their behalf.</li>
+        <li><strong>Sign-in tokens</strong> issued by Roblox (an access token and a refresh token), used to call Roblox's APIs for you.</li>
+        <li><strong>Your experiences and icons</strong>: the universe and place IDs you add, the icon images you choose, your timer overlays, the update schedule and its progress.</li>
+      </ul>
+
+      <h2>Where it is stored</h2>
+      <ul>
+        <li>All of it stays on your computer. App data and images are kept in <code>%APPDATA%\Roicon</code>.</li>
+        <li>Sign-in tokens, and any client secret or API key you enter, are stored in Windows Credential Manager on your PC.</li>
+        <li>Roicon has no servers, accounts or databases of its own, and it does not collect analytics or telemetry.</li>
+      </ul>
+
+      <h2>Who it is shared with</h2>
+      <ul>
+        <li><strong>Roblox.</strong> Roicon sends requests only to Roblox's own services (for example <code>apis.roblox.com</code>, <code>games.roblox.com</code> and <code>thumbnails.roblox.com</code>) to sign you in, read game and place names, upload your icon images, check their moderation status and set place icons. Images you upload become assets on your Roblox account or group and are handled under Roblox's own <a href="https://en.help.roblox.com/hc/articles/115004630823">Privacy Policy</a>.</li>
+        <li><strong>Your phone, if you use the phone relay.</strong> "Send to phone" serves a status page over your local network to devices that scan its QR code. The link contains a private token and you can replace it at any time with "New link".</li>
+        <li>Roicon never sells, rents or shares your information with anyone else.</li>
+      </ul>
+
+      <h2>Your choices</h2>
+      <ul>
+        <li><strong>Disconnect</strong> in Roicon's Settings revokes Roicon's Roblox tokens and removes them from your PC. You can also remove Roicon from the authorized apps in your Roblox account settings.</li>
+        <li>Removing an experience from Roicon deletes it from the app. Nothing changes on Roblox.</li>
+        <li>To delete everything, disconnect, quit Roicon and delete the <code>%APPDATA%\Roicon</code> folder.</li>
+      </ul>
+
+      <h2>Children</h2>
+      <p>Roblox's sign-in for third-party apps is available to users 13 and older. Roicon is meant for creators who manage their own Roblox experiences.</p>
+
+      <h2>Changes</h2>
+      <p>If this policy changes, the new version will be posted on this page with a new date.</p>
+
+      <h2>Contact</h2>
+      <p>Questions or requests: open an issue at <a href="https://github.com/jakedev2/Roicon/issues">github.com/jakedev2/Roicon/issues</a>.</p>
+    </main>
+
+    <footer>
+      <div class="row">
+        <span>© 2026 Roicon</span>
+        <span class="grow"></span>
+        <a href="./">Home</a>
+        <a href="terms.html">Terms of Service</a>
+      </div>
+      <p>Roicon is not affiliated with, endorsed by or sponsored by Roblox Corporation.</p>
+    </footer>
+  </div>
+</body>
+</html>
