@@ -18,7 +18,7 @@ import { hasPerm, PERMS, roleDefault, ROLE_INFO, ROLES } from '@/lib/perms';
 import { cn, shortDate, timeAgo } from '@/lib/format';
 import { must, sb } from '@/lib/supabase';
 import { pickFile } from '@/lib/tauri';
-import type { Member, Perm, Role } from '@/lib/types';
+import type { Member, Perm, Role, Team } from '@/lib/types';
 
 type Tab = 'members' | 'invitations' | 'projects' | 'permissions' | 'activity' | 'settings' | 'new';
 
@@ -310,13 +310,20 @@ export function TeamSettingsTab() {
   const [name, setName] = useState(team?.name ?? '');
   const canManage = hasPerm(me, 'manage_members');
   if (!team) return null;
-  const save = async (patch: { name?: string; color?: string; avatar_url?: string | null }) => {
+  const [uploading, setUploading] = useState(false);
+  const save = async (patch: { name?: string; color?: string; avatar_url?: string | null }, ok = 'Team updated') => {
     try {
-      must(await sb().from('teams').update(patch).eq('id', team.id));
-      useWorkspace.setState({ teams: useWorkspace.getState().teams.map((t) => (t.id === team.id ? { ...t, ...patch } : t)) });
-      toast.success('Team updated');
+      // .select() makes an update that changed nothing (no permission) an error instead of a silent no-op.
+      const { data, error } = await sb().from('teams').update(patch).eq('id', team.id).select().maybeSingle();
+      if (error) {
+        if (/avatar_url/.test(error.message)) throw new Error('Team pictures need a database update. Run supabase/migrations/20261127000000_team_avatars.sql in the Supabase SQL Editor, then try again.');
+        throw new Error(error.message);
+      }
+      if (!data) throw new Error('You don’t have permission to change this team.');
+      useWorkspace.setState({ teams: useWorkspace.getState().teams.map((t) => (t.id === team.id ? { ...t, ...(data as Partial<Team>) } : t)) });
+      toast.success(ok);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error((e as Error).message, { duration: 10000 });
     }
   };
   return (
@@ -326,16 +333,19 @@ export function TeamSettingsTab() {
           <Field label="Team picture" hint="Square PNG, JPG or WebP, up to 5 MB. Shown in the sidebar, invites and team pages.">
             <div className="flex items-center gap-3">
               <TeamMark name={team.name} color={team.color} url={team.avatar_url} size={56} />
-              <Button size="sm" disabled={!canManage} onClick={async () => {
+              <Button size="sm" disabled={!canManage} loading={uploading} onClick={async () => {
                 const f = await pickFile('image/png,image/jpeg,image/webp');
                 if (!f) return;
+                setUploading(true);
                 try {
                   const url = await uploadPublicImage('thumbnails', team.id, f);
-                  await save({ avatar_url: url });
+                  await save({ avatar_url: url }, 'Team picture updated');
                 } catch (e) {
-                  toast.error((e as Error).message);
+                  toast.error(`Upload failed: ${(e as Error).message}`, { duration: 10000 });
+                } finally {
+                  setUploading(false);
                 }
-              }}>Upload picture</Button>
+              }}>{uploading ? 'Uploading…' : 'Upload picture'}</Button>
               {team.avatar_url && <Button size="sm" variant="ghost" disabled={!canManage} onClick={() => save({ avatar_url: null })}>Remove</Button>}
             </div>
           </Field>

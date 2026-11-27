@@ -1,5 +1,8 @@
 **Download `Corel.exe`** and run it. It installs itself, adds Desktop and Start menu shortcuts, and opens. Coming from Roicon? Corel imports your experiences, schedules and Roblox sign-in on first start.
 
+### 2.0.3
+- Team pictures: shows progress while uploading and explains exactly what went wrong if the picture can’t be saved.
+
 ### 2.0.2
 - **Publish uses your project's exact universe ID** when you set up publishing from a project, instead of guessing from the number (which sometimes picked the wrong game).
 - **Team pictures:** upload a profile picture for your team in Team → Settings.

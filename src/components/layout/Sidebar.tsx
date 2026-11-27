@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { BarChart3, Bell, Bug, Check, ChevronsUpDown, Code2, FolderKanban, LayoutDashboard, Lock, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Rocket, Search, Settings, User, Users } from 'lucide-react';
 import { Avatar, Kbd, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger, Tooltip } from '@/components/ui';
@@ -14,7 +15,8 @@ const TEAM_COLORS: Record<string, string> = { green: '#22c55e', indigo: '#818cf8
 export const teamColor = (c: string) => TEAM_COLORS[c] ?? TEAM_COLORS.green;
 
 export function TeamMark({ name, color, size = 22, url }: { name: string; color: string; size?: number; url?: string | null }) {
-  if (url) return <img src={url} alt="" className="shrink-0 rounded-md object-cover ring-1 ring-line" style={{ width: size, height: size }} />;
+  const [broken, setBroken] = useState<string | null>(null);
+  if (url && broken !== url) return <img src={url} alt="" onError={() => setBroken(url)} className="shrink-0 rounded-md object-cover ring-1 ring-line" style={{ width: size, height: size }} />;
   return (
     <span className="grid shrink-0 place-items-center rounded-md font-semibold text-black/80" style={{ width: size, height: size, background: teamColor(color), fontSize: size * 0.48 }} aria-hidden>
       {name.trim()[0]?.toUpperCase() ?? 'T'}
