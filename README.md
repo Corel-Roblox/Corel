@@ -1,5 +1,7 @@
 # Corel
 
+Website: [corel.site](https://corel.site)
+
 **The workspace for Roblox development teams.** Projects, publishing, analytics, bug
 tracking, a shared Luau script library and real-time collaboration in one Windows desktop app.
 
@@ -66,8 +68,8 @@ collaboration.
 ### 1. Workspace server (once per organisation)
 
 1. Create a project at [supabase.com](https://supabase.com/dashboard) (the free tier works).
-2. Run the migration: open **SQL Editor**, paste `supabase/migrations/20261126000000_corel_init.sql`
-   and run it, or use the CLI: `supabase link` then `supabase db push`.
+2. Run the migrations in order: open **SQL Editor**, paste each file in `supabase/migrations/`
+   (oldest first) and run it, or use the CLI: `supabase link` then `supabase db push`.
 3. **Authentication → Providers → Email:** keep it enabled. Turn "Confirm email" on or off as you prefer.
 4. **Realtime → Settings:** leave "Allow public access" off so the private team channels are used.
 5. **Project Settings → API:** copy the Project URL and the `anon` public key.

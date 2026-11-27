@@ -13,7 +13,8 @@ import { isOpenBug } from '@/components/common';
 const TEAM_COLORS: Record<string, string> = { green: '#22c55e', indigo: '#818cf8', blue: '#3b9eff', violet: '#a78bfa', amber: '#f5b83d', rose: '#fb7185' };
 export const teamColor = (c: string) => TEAM_COLORS[c] ?? TEAM_COLORS.green;
 
-export function TeamMark({ name, color, size = 22 }: { name: string; color: string; size?: number }) {
+export function TeamMark({ name, color, size = 22, url }: { name: string; color: string; size?: number; url?: string | null }) {
+  if (url) return <img src={url} alt="" className="shrink-0 rounded-md object-cover ring-1 ring-line" style={{ width: size, height: size }} />;
   return (
     <span className="grid shrink-0 place-items-center rounded-md font-semibold text-black/80" style={{ width: size, height: size, background: teamColor(color), fontSize: size * 0.48 }} aria-hidden>
       {name.trim()[0]?.toUpperCase() ?? 'T'}
@@ -61,7 +62,7 @@ export function Sidebar({ offline }: { offline?: boolean }) {
           <Menu>
             <MenuTrigger asChild>
               <button className={cn('flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left transition-colors hover:bg-hover', collapsed && 'justify-center px-0')} aria-label="Switch team">
-                <TeamMark name={team?.name ?? 'Team'} color={team?.color ?? 'green'} />
+                <TeamMark name={team?.name ?? 'Team'} color={team?.color ?? 'green'} url={team?.avatar_url} />
                 {!collapsed && (
                   <>
                     <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{team?.name ?? 'Select team'}</span>
@@ -73,7 +74,7 @@ export function Sidebar({ offline }: { offline?: boolean }) {
             <MenuContent align="start" className="w-[240px]">
               <MenuLabel>Teams</MenuLabel>
               {teams.map((t) => (
-                <MenuItem key={t.id} icon={<TeamMark name={t.name} color={t.color} size={16} />} onSelect={() => { selectTeam(t.id); navigate('/'); }}>
+                <MenuItem key={t.id} icon={<TeamMark name={t.name} color={t.color} url={t.avatar_url} size={16} />} onSelect={() => { selectTeam(t.id); navigate('/'); }}>
                   <span className="flex items-center justify-between gap-2">
                     {t.name}
                     {t.id === teamId && <Check className="size-3.5 text-accent-text" />}

@@ -179,7 +179,7 @@ function ProjectScripts({ project }: { project: Project }) {
 
 function ProjectPublish({ project }: { project: Project }) {
   const updates = useWorkspace((s) => s.publish.filter((u) => u.project_id === project.id));
-  const local = useEngine((s) => s.state?.experiences.find((e) => e.project_id === project.id));
+  const local = useEngine((s) => s.state?.experiences.find((e) => e.project_id === project.id && e.universe_id === project.universe_id));
   const navigate = useNavigate();
   const me = useMe();
   const prole = useProjectRole(project.id);
@@ -189,7 +189,7 @@ function ProjectPublish({ project }: { project: Project }) {
     if (!project.universe_id) return;
     setAdding(true);
     try {
-      const id = await invoke<string>('exp_add', { input: project.universe_id, projectId: project.id });
+      const id = await invoke<string>('exp_add', { input: project.universe_id, projectId: project.id, universeId: project.universe_id });
       navigate(`/publish/${id}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -297,7 +297,7 @@ function ProjectSettings({ project }: { project: Project }) {
   const lookup = async () => {
     setResolving(true);
     try {
-      const r = await invoke<ResolvedGame>('roblox_resolve', { input: place || universe });
+      const r = await invoke<ResolvedGame>('roblox_resolve', universe ? { input: universe, universeId: universe } : { input: place });
       setUniverse(r.universeId);
       setPlace(r.rootPlaceId);
       if (r.iconUrl) await updateProject(project.id, { thumbnail_url: r.iconUrl });

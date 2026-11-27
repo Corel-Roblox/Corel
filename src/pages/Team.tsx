@@ -13,10 +13,11 @@ import { useUI } from '@/store/ui';
 import { displayName, useMe, useWorkspace } from '@/store/workspace';
 import { usePresence } from '@/store/presence';
 import { useSession } from '@/store/session';
-import { inviteLink, removeMember, revokeInvite, setMemberPermissions, setMemberRole } from '@/lib/actions';
+import { inviteLink, removeMember, uploadPublicImage, revokeInvite, setMemberPermissions, setMemberRole } from '@/lib/actions';
 import { hasPerm, PERMS, roleDefault, ROLE_INFO, ROLES } from '@/lib/perms';
 import { cn, shortDate, timeAgo } from '@/lib/format';
 import { must, sb } from '@/lib/supabase';
+import { pickFile } from '@/lib/tauri';
 import type { Member, Perm, Role } from '@/lib/types';
 
 type Tab = 'members' | 'invitations' | 'projects' | 'permissions' | 'activity' | 'settings' | 'new';
@@ -44,7 +45,7 @@ export function TeamPage() {
   return (
     <Page wide>
       <PageHeader
-        icon={team && <TeamMark name={team.name} color={team.color} size={36} />}
+        icon={team && <TeamMark name={team.name} color={team.color} url={team.avatar_url} size={36} />}
         title={team?.name ?? 'Team'}
         description={`${members.length} member${members.length === 1 ? '' : 's'} · ${online} online now`}
         actions={<><PresenceStack max={6} />{canManage && <Button variant="primary" icon={<UserPlus className="size-3.5" />} onClick={() => openCreate('invite')}>Invite</Button>}</>}
@@ -309,7 +310,7 @@ export function TeamSettingsTab() {
   const [name, setName] = useState(team?.name ?? '');
   const canManage = hasPerm(me, 'manage_members');
   if (!team) return null;
-  const save = async (patch: { name?: string; color?: string }) => {
+  const save = async (patch: { name?: string; color?: string; avatar_url?: string | null }) => {
     try {
       must(await sb().from('teams').update(patch).eq('id', team.id));
       useWorkspace.setState({ teams: useWorkspace.getState().teams.map((t) => (t.id === team.id ? { ...t, ...patch } : t)) });
@@ -322,6 +323,22 @@ export function TeamSettingsTab() {
     <div className="grid max-w-[640px] gap-3">
       <Card title="Team profile">
         <div className="space-y-4">
+          <Field label="Team picture" hint="Square PNG, JPG or WebP, up to 5 MB. Shown in the sidebar, invites and team pages.">
+            <div className="flex items-center gap-3">
+              <TeamMark name={team.name} color={team.color} url={team.avatar_url} size={56} />
+              <Button size="sm" disabled={!canManage} onClick={async () => {
+                const f = await pickFile('image/png,image/jpeg,image/webp');
+                if (!f) return;
+                try {
+                  const url = await uploadPublicImage('thumbnails', team.id, f);
+                  await save({ avatar_url: url });
+                } catch (e) {
+                  toast.error((e as Error).message);
+                }
+              }}>Upload picture</Button>
+              {team.avatar_url && <Button size="sm" variant="ghost" disabled={!canManage} onClick={() => save({ avatar_url: null })}>Remove</Button>}
+            </div>
+          </Field>
           <Field label="Name">
             <div className="flex gap-2">
               <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} maxLength={60} />

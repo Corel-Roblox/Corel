@@ -265,10 +265,14 @@ pub struct Resolved {
 
 /// Looks up an experience from a roblox.com link, a place ID or a universe ID.
 #[tauri::command]
-async fn roblox_resolve(state: State<'_, AppState>, input: String) -> Res<Resolved> {
+async fn roblox_resolve(state: State<'_, AppState>, input: String, universe_id: Option<String>) -> Res<Resolved> {
     let store = state.store.clone();
     blocking(move || {
-        let uni = roblox::universe_from_input(&input).map_err(|e| e.msg)?;
+        let uni = match universe_id.map(|u| u.trim().to_owned()).filter(|u| !u.is_empty()) {
+            Some(u) if u.chars().all(|c| c.is_ascii_digit()) => u,
+            Some(_) => return Err("The universe ID must be a number.".into()),
+            None => roblox::universe_from_input(&input).map_err(|e| e.msg)?,
+        };
         let acct_user = store.lock().account.as_ref().and_then(|a| a.user_id.clone());
         let g = roblox::resolve_game(&uni, store.credential().ok().as_ref(), acct_user).map_err(|e| e.msg)?;
         let icon_url = roblox::get_game_icon_url(&uni).ok();
@@ -289,10 +293,16 @@ async fn roblox_game_stats(universe_ids: Vec<String>) -> Res<Vec<roblox::GameSta
 // ------------------------------------------------------------------ experiences (publishing engine)
 
 #[tauri::command]
-async fn exp_add(state: State<'_, AppState>, input: String, project_id: Option<String>) -> Res<String> {
+async fn exp_add(state: State<'_, AppState>, input: String, project_id: Option<String>, universe_id: Option<String>) -> Res<String> {
     let store = state.store.clone();
     blocking(move || {
-        let uid_ = roblox::universe_from_input(&input).map_err(|e| e.msg)?;
+        // A project's universe ID is used exactly as entered; only free-form input
+        // (links, place IDs) goes through the lookup that guesses which kind of ID it is.
+        let uid_ = match universe_id.map(|u| u.trim().to_owned()).filter(|u| !u.is_empty()) {
+            Some(u) if u.chars().all(|c| c.is_ascii_digit()) => u,
+            Some(_) => return Err("The universe ID must be a number.".into()),
+            None => roblox::universe_from_input(&input).map_err(|e| e.msg)?,
+        };
         if let Some(existing) = store.lock().experiences.iter().find(|e| e.universe_id == uid_) {
             let id = existing.id.clone();
             if project_id.is_some() {

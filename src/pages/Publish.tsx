@@ -644,11 +644,11 @@ function AddExperienceDialog({ open, onClose }: { open: boolean; onClose: () => 
       setError(null);
     }
   }, [open]);
-  const add = async (value: string, projectId: string | null) => {
+  const add = async (value: string, projectId: string | null, universeId?: string) => {
     setBusy(true);
     setError(null);
     try {
-      const id = await invoke<string>('exp_add', { input: value, projectId });
+      const id = await invoke<string>('exp_add', { input: value, projectId, universeId: universeId ?? null });
       onClose();
       navigate(`/publish/${id}`);
     } catch (e) {
@@ -667,7 +667,7 @@ function AddExperienceDialog({ open, onClose }: { open: boolean; onClose: () => 
             <p className="mb-2 text-[12px] font-medium text-fg-muted">From your projects</p>
             <div className="space-y-1">
               {unlinked.map((p) => (
-                <button key={p.id} disabled={busy} onClick={() => add(p.universe_id!, p.id)} className="flex w-full items-center gap-3 rounded-md border border-line px-3 py-2 text-left hover:border-line-strong hover:bg-hover">
+                <button key={p.id} disabled={busy} onClick={() => add(p.universe_id!, p.id, p.universe_id!)} className="flex w-full items-center gap-3 rounded-md border border-line px-3 py-2 text-left hover:border-line-strong hover:bg-hover">
                   <ProjectThumb project={p} size={28} />
                   <span className="flex-1 truncate text-[13px]">{p.name}</span>
                   <span className="font-mono text-[11.5px] text-fg-subtle">{p.universe_id}</span>

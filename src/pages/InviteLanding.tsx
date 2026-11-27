@@ -14,6 +14,7 @@ interface InvitePreview {
   team_id: string;
   team_name: string;
   team_color: string;
+  team_avatar?: string | null;
   role: string;
   email: string | null;
   status: string;
@@ -59,7 +60,7 @@ export function InviteLanding() {
         <div className="flex justify-center py-10"><Spinner /></div>
       ) : (
         <div className="rounded-xl border border-line bg-panel p-6 text-center">
-          {invite && <div className="mb-4 flex justify-center"><TeamMark name={invite.team_name} color={invite.team_color} size={44} /></div>}
+          {invite && <div className="mb-4 flex justify-center"><TeamMark name={invite.team_name} color={invite.team_color} url={invite.team_avatar} size={44} /></div>}
           <h1 className="text-[18px] font-semibold tracking-[-0.02em]">{invite ? `Join ${invite.team_name}` : 'Invite not found'}</h1>
           {invite && <p className="mt-1 text-[13px] text-fg-muted">{invite.invited_by} invited you as <span className="capitalize text-fg">{invite.role}</span>.</p>}
           <div className="mt-5 space-y-3 text-left">

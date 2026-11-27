@@ -289,7 +289,7 @@ fn write_uninstall_entry(exe: &Path) {
     let _ = k.set_value("DisplayIcon", &exe_s);
     let _ = k.set_value("InstallLocation", &install_dir().to_string_lossy().into_owned());
     let _ = k.set_value("UninstallString", &format!("\"{exe_s}\" --uninstall"));
-    let _ = k.set_value("URLInfoAbout", &"https://corel-roblox.github.io/Corel/");
+    let _ = k.set_value("URLInfoAbout", &"https://corel.site/");
     let _ = k.set_value("Comments", &"The workspace for Roblox development teams");
     let _ = k.set_value("NoModify", &1u32);
     let _ = k.set_value("NoRepair", &1u32);
