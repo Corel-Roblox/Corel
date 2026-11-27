@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d12">
+  <title>Design system · Corel</title>
+  <meta name="description" content="Corel's brand and design system: logo, colours, typography and interface components.">
+  <link rel="icon" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav class="top">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="corel-mark.svg" alt="">Corel</a>
+      <a class="link opt" href="./#features">Features</a>
+      <a class="link opt" href="brand.html" aria-current="page">Design</a>
+      <span class="grow"></span>
+      <a class="link" href="https://github.com/Corel-Roblox/Corel">GitHub</a>
+      <a class="btn primary js-download" href="https://github.com/Corel-Roblox/Corel/releases/latest/download/Corel.exe">Download</a>
+    </div>
+  </nav>
+
+  <header class="hero" style="padding-bottom:24px">
+    <div class="wrap">
+      <span class="pill">Design system</span>
+      <h1>Swiss-minimal. <span>Dark-first. Dense.</span></h1>
+      <p class="lead">The rules behind Corel’s look: one cube, one accent, two typefaces and a calm, dense interface built for long working sessions. Click any colour to copy it.</p>
+      <div class="toc" style="justify-content:center">
+        <a class="tab" href="#logo">Logo</a><a class="tab" href="#colour">Colour</a><a class="tab" href="#type">Typography</a><a class="tab" href="#ui">Components</a><a class="tab" href="#principles">Principles</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="block" id="logo">
+    <div class="wrap">
+      <div class="eyebrow">01 · Logo</div>
+      <h2>The core block.</h2>
+      <p class="sub">An isometric cube made of three faces, separated by thin gaps. It reads as a building block, a game world and the “core” of your workflow, and stays recognisable at 16 pixels.</p>
+      <div class="logos">
+        <div class="card"><img src="corel-icon.svg" alt="Corel app icon"><span class="mono" style="font-size:12px;color:var(--fg-subtle)">App icon</span></div>
+        <div class="card"><img src="corel-mark.svg" alt="Corel mark"><span class="mono" style="font-size:12px;color:var(--fg-subtle)">Mark, on dark</span></div>
+        <div class="card light"><img src="corel-mark.svg" alt="Corel mark on light background"><span class="mono" style="font-size:12px;color:#4b5565">Mark, on light</span></div>
+      </div>
+      <div class="demo-ui" style="margin-top:20px">
+        <a class="btn" href="corel-logo.png" download>Download PNG (512px)</a>
+        <a class="btn" href="corel-icon.svg" download>App icon SVG</a>
+        <a class="btn" href="corel-mark.svg" download>Mark SVG</a>
+      </div>
+      <div class="card" style="margin-top:20px;display:flex;align-items:center;gap:28px;flex-wrap:wrap">
+        <span class="brand" style="font-size:28px;margin:0"><img src="corel-mark.svg" alt="" style="width:34px;height:34px">Corel</span>
+        <span style="color:var(--fg-muted);font-size:14px;max-width:520px">Wordmark: IBM Plex Sans SemiBold, −1% tracking, mark at 1.2× cap height with the gap equal to one face width. Keep clear space of half the mark on every side. Don’t recolour the faces, rotate the cube or add effects.</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="colour">
+    <div class="wrap">
+      <div class="eyebrow">02 · Colour</div>
+      <h2>One accent, neutral everywhere else.</h2>
+      <p class="sub">Surfaces are near-black neutrals separated by hairline borders, not heavy shadows. Signal green marks actions, focus and live states. Text pairs meet WCAG AA contrast.</p>
+      <h3 style="margin:36px 0 0;font-size:15px">Brand</h3>
+      <div class="swatches">
+        <button class="sw" data-copy="#4ADE80"><i style="background:#4ade80"></i><div><b>Cube top</b><span>#4ADE80</span></div></button>
+        <button class="sw" data-copy="#22C55E"><i style="background:#22c55e"></i><div><b>Signal green</b><span>#22C55E</span></div></button>
+        <button class="sw" data-copy="#15803D"><i style="background:#15803d"></i><div><b>Cube shade</b><span>#15803D</span></div></button>
+        <button class="sw" data-copy="#04210F"><i style="background:#04210f"></i><div><b>On accent</b><span>#04210F</span></div></button>
+      </div>
+      <h3 style="margin:36px 0 0;font-size:15px">Surfaces and text (dark)</h3>
+      <div class="swatches">
+        <button class="sw" data-copy="#0B0D12"><i style="background:#0b0d12"></i><div><b>Background</b><span>#0B0D12</span></div></button>
+        <button class="sw" data-copy="#0F1217"><i style="background:#0f1217"></i><div><b>Panel</b><span>#0F1217</span></div></button>
+        <button class="sw" data-copy="#151920"><i style="background:#151920"></i><div><b>Raised</b><span>#151920</span></div></button>
+        <button class="sw" data-copy="rgba(255,255,255,0.07)"><i style="background:rgb(255 255 255/.07)"></i><div><b>Line</b><span>white 7%</span></div></button>
+        <button class="sw" data-copy="#ECEEF3"><i style="background:#eceef3"></i><div><b>Text</b><span>#ECEEF3</span></div></button>
+        <button class="sw" data-copy="#9AA2B4"><i style="background:#9aa2b4"></i><div><b>Muted text</b><span>#9AA2B4</span></div></button>
+      </div>
+      <h3 style="margin:36px 0 0;font-size:15px">Status</h3>
+      <div class="swatches">
+        <button class="sw" data-copy="#4ADE80"><i style="background:#4ade80"></i><div><b>Success · fixed</b><span>#4ADE80</span></div></button>
+        <button class="sw" data-copy="#F5B83D"><i style="background:#f5b83d"></i><div><b>Warning · high</b><span>#F5B83D</span></div></button>
+        <button class="sw" data-copy="#F87171"><i style="background:#f87171"></i><div><b>Danger · critical</b><span>#F87171</span></div></button>
+        <button class="sw" data-copy="#60A5FA"><i style="background:#60a5fa"></i><div><b>Info · medium</b><span>#60A5FA</span></div></button>
+      </div>
+      <h3 style="margin:36px 0 0;font-size:15px">Accent options in the app</h3>
+      <div class="swatches">
+        <button class="sw" data-copy="#22C55E"><i style="background:#22c55e"></i><div><b>Signal green</b><span>default</span></div></button>
+        <button class="sw" data-copy="#818CF8"><i style="background:#818cf8"></i><div><b>Indigo</b><span>#818CF8</span></div></button>
+        <button class="sw" data-copy="#3B9EFF"><i style="background:#3b9eff"></i><div><b>Blue</b><span>#3B9EFF</span></div></button>
+        <button class="sw" data-copy="#A78BFA"><i style="background:#a78bfa"></i><div><b>Violet</b><span>#A78BFA</span></div></button>
+        <button class="sw" data-copy="#F5B83D"><i style="background:#f5b83d"></i><div><b>Amber</b><span>#F5B83D</span></div></button>
+        <button class="sw" data-copy="#FB7185"><i style="background:#fb7185"></i><div><b>Rose</b><span>#FB7185</span></div></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="type">
+    <div class="wrap">
+      <div class="eyebrow">03 · Typography</div>
+      <h2>Plex for people, Mono for machines.</h2>
+      <p class="sub">IBM Plex Sans for the interface: precise, technical and very readable at small sizes. JetBrains Mono for code, IDs and numbers that need to line up.</p>
+      <div class="card" style="margin-top:32px">
+        <div class="type-row"><span>Display · 600</span><span style="font-size:44px;font-weight:600;letter-spacing:-0.03em;line-height:1.1">Ship the winter update</span></div>
+        <div class="type-row"><span>Heading · 600</span><span style="font-size:20px;font-weight:600;letter-spacing:-0.02em">Upcoming updates</span></div>
+        <div class="type-row"><span>Body · 400</span><span style="font-size:14px;color:var(--fg-muted)">Players fall through the floor after respawning in the lobby.</span></div>
+        <div class="type-row"><span>Label · 500</span><span style="font-size:12px;font-weight:500;color:var(--fg-muted)">Assignee</span></div>
+        <div class="type-row" style="border:0"><span>Mono · 400</span><span class="mono" style="font-size:13px;color:var(--accent-text)">local DataService = require(script.Parent.DataService)  -- BUG-31 · universe 4820193</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="ui">
+    <div class="wrap">
+      <div class="eyebrow">04 · Components</div>
+      <h2>Small, quiet, consistent.</h2>
+      <p class="sub">Controls are 28–32 px tall with 6–8 px radii. Lucide icons at 14–16 px, 2 px stroke. Every interactive element has a hover state and a visible focus ring.</p>
+      <div class="card" style="margin-top:32px;display:grid;gap:24px">
+        <div class="demo-ui">
+          <button class="btn primary">Primary</button>
+          <button class="btn">Secondary</button>
+          <button class="btn" style="background:transparent;border-color:transparent;color:var(--fg-muted)">Ghost</button>
+          <button class="btn" style="background:rgb(248 113 113/.13);color:var(--danger);border-color:rgb(248 113 113/.25)">Danger</button>
+        </div>
+        <div class="demo-ui">
+          <span class="badge" style="background:rgb(248 113 113/.13);color:var(--danger)">● Critical</span>
+          <span class="badge" style="background:rgb(245 184 61/.13);color:var(--warning)">↑ High</span>
+          <span class="badge" style="background:rgb(96 165 250/.13);color:var(--info)">= Medium</span>
+          <span class="badge" style="background:rgb(255 255 255/.075);color:var(--fg-muted)">↓ Low</span>
+          <span class="badge" style="background:var(--accent-soft);color:var(--accent-text)">5h 17m</span>
+        </div>
+        <div class="demo-ui" style="gap:16px">
+          <span style="display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:1px solid var(--line-strong);border-radius:7px;background:var(--sunken);color:var(--fg-subtle);font-size:13px;width:260px">⌕ Search… <span class="mono" style="margin-left:auto;font-size:11px;border:1px solid var(--line-strong);border-radius:4px;padding:0 4px">Ctrl K</span></span>
+          <span style="display:inline-block;width:32px;height:18px;border-radius:99px;background:var(--accent);position:relative"><i style="position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--accent-fg)"></i></span>
+          <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#4ade80"><i style="width:7px;height:7px;border-radius:50%;background:#4ade80"></i>Online</span>
+        </div>
+      </div>
+      <div class="shot" style="margin-top:24px"><img src="img/bug.png" width="2880" height="1800" alt="Components in context: bug report sheet" loading="lazy"></div>
+    </div>
+  </section>
+
+  <section class="block" id="principles">
+    <div class="wrap">
+      <div class="eyebrow">05 · Principles</div>
+      <h2>How Corel decides.</h2>
+      <div class="grid">
+        <div class="cell"><h3>Honest data</h3><p>Missing data says “Not available”, never zero. Sample charts are labelled Demo data. A step is “live” only after Roblox confirms it.</p></div>
+        <div class="cell"><h3>Density with calm</h3><p>Fit a working day on one screen with 8–32 px spacing, hairline borders and one accent colour, not cards, gradients and noise.</p></div>
+        <div class="cell"><h3>Motion means something</h3><p>150–250 ms transitions for state changes and arrivals. Respect “reduce motion”, and never animate just to decorate.</p></div>
+        <div class="cell"><h3>Keyboard first</h3><p>Every page is a G-shortcut away, Ctrl K finds anything, C creates what fits the page, and focus is always visible.</p></div>
+        <div class="cell"><h3>Never lose work</h3><p>Saves can’t overwrite a teammate, drafts survive restarts, and every script version can be restored.</p></div>
+        <div class="cell"><h3>Accessible by default</h3><p>AA contrast for text, labels on icon buttons, status shown by icon and text as well as colour, and line styles that tell chart series apart.</p></div>
+      </div>
+      <p style="margin-top:28px;color:var(--fg-subtle);font-size:14px">Source of truth: <a href="https://github.com/Corel-Roblox/Corel/blob/main/design-system/corel/MASTER.md" style="color:var(--accent-text)">design-system/corel/MASTER.md</a> and the tokens in <span class="mono">src/styles.css</span>.</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <a class="brand" href="./"><img src="corel-mark.svg" alt="">Corel</a>
+      <span>© 2026 Corel</span>
+      <span class="grow"></span>
+      <a href="./">Home</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+    </div>
+  </footer>
+  <script src="site.js"></script>
+</body>
+</html>

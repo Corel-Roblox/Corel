@@ -13,7 +13,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-const REPO: &str = "jakedev2/Corel";
+const REPO: &str = "Corel-Roblox/Corel";
+/// Earlier homes of the repository; GitHub redirects them, so downloads may come from either.
+const OLD_REPOS: &[&str] = &["jakedev2/Corel"];
 const EXE: &str = "Corel.exe";
 const UNINSTALL_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Corel";
 const LEGACY_UNINSTALL_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Roicon";
@@ -287,7 +289,7 @@ fn write_uninstall_entry(exe: &Path) {
     let _ = k.set_value("DisplayIcon", &exe_s);
     let _ = k.set_value("InstallLocation", &install_dir().to_string_lossy().into_owned());
     let _ = k.set_value("UninstallString", &format!("\"{exe_s}\" --uninstall"));
-    let _ = k.set_value("URLInfoAbout", &"https://github.com/jakedev2/Corel");
+    let _ = k.set_value("URLInfoAbout", &"https://corel-roblox.github.io/Corel/");
     let _ = k.set_value("Comments", &"The workspace for Roblox development teams");
     let _ = k.set_value("NoModify", &1u32);
     let _ = k.set_value("NoRepair", &1u32);
@@ -442,7 +444,8 @@ pub fn check_and_download(local: &str) -> Result<Option<String>, String> {
     }
     let asset = rel["assets"].as_array().and_then(|a| a.iter().find(|x| x["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(EXE)))).ok_or("release has no Corel.exe")?;
     let url = asset["browser_download_url"].as_str().ok_or("no download url")?;
-    if !url.starts_with(&format!("https://github.com/{REPO}/releases/download/")) {
+    let trusted = std::iter::once(REPO).chain(OLD_REPOS.iter().copied()).any(|r| url.starts_with(&format!("https://github.com/{r}/releases/download/")));
+    if !trusted {
         return Err("unexpected download url".into());
     }
     let size = asset["size"].as_u64().unwrap_or(0);

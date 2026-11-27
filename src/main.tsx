@@ -27,4 +27,5 @@ if (import.meta.env.DEV) {
   Promise.all([import('./store/session'), import('./store/workspace'), import('./store/ui'), import('./store/presence')]).then(([s, w, u, p]) => {
     (window as unknown as Record<string, unknown>).__corel = { session: s.useSession, workspace: w.useWorkspace, ui: u.useUI, presence: p.usePresence };
   });
+  if (new URLSearchParams(location.search).has('demo')) import('./dev/demo').then((d) => window.setTimeout(d.loadDemo, 60));
 }

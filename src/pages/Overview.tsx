@@ -15,6 +15,8 @@ import { getSupabase } from '@/lib/supabase';
 import { ago, cn, countdown, longDate, num } from '@/lib/format';
 import { hasPerm } from '@/lib/perms';
 import type { Snapshot } from '@/lib/types';
+import { isDemo } from '@/dev/demo';
+import { demoSnapshots } from './Analytics';
 
 export function OverviewPage() {
   const profile = useSession((s) => s.profile);
@@ -55,7 +57,7 @@ export function OverviewPage() {
             onDragOver={(e) => { if (dragging && dragging !== id) { e.preventDefault(); } }}
             onDrop={() => { if (dragging) move(dragging, id); setDragging(null); }}
             onDragEnd={() => setDragging(null)}
-            className={cn('group/w relative min-w-0', SPAN[id], dragging === id && 'opacity-40')}
+            className={cn('group/w relative flex min-w-0 flex-col [&>section]:flex-1', SPAN[id], dragging === id && 'opacity-40')}
           >
             <span className="pointer-events-none absolute -left-1 top-3 z-10 text-fg-subtle opacity-0 transition-opacity group-hover/w:opacity-60" aria-hidden><GripVertical className="size-3.5" /></span>
             <Widget id={id} />
@@ -88,10 +90,10 @@ export function OverviewPage() {
 const SPAN: Record<WidgetId, string> = {
   stats: 'col-span-12',
   upcoming: 'col-span-12 xl:col-span-5',
-  activity: 'col-span-12 xl:col-span-7 xl:row-span-2',
-  bugs: 'col-span-12 xl:col-span-5',
-  performance: 'col-span-12 xl:col-span-7',
-  scripts: 'col-span-12 md:col-span-6 xl:col-span-5',
+  activity: 'col-span-12 xl:col-span-7',
+  bugs: 'col-span-12 xl:col-span-6',
+  performance: 'col-span-12 xl:col-span-6',
+  scripts: 'col-span-12 md:col-span-6 xl:col-span-6',
   tasks: 'col-span-12 md:col-span-6 xl:col-span-6',
   projects: 'col-span-12 xl:col-span-6',
 };
@@ -103,7 +105,7 @@ function Widget({ id }: { id: WidgetId }) {
     case 'upcoming':
       return <UpcomingWidget />;
     case 'activity':
-      return <Card title="Recent activity" description="Live from your team" padded={false} action={<Link to="/team/activity" className="text-[12px] text-fg-muted hover:text-fg">View all</Link>}><div className="max-h-[560px] overflow-y-auto p-2"><ActivityFeed limit={25} filters={false} compact /></div></Card>;
+      return <Card title="Recent activity" description="Live from your team" padded={false} action={<Link to="/team/activity" className="text-[12px] text-fg-muted hover:text-fg">View all</Link>}><div className="max-h-[236px] overflow-y-auto p-2"><ActivityFeed limit={25} filters={false} compact /></div></Card>;
     case 'bugs':
       return <RecentBugsWidget />;
     case 'performance':
@@ -145,7 +147,7 @@ function StatsWidget() {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Stat label="Projects" value={projects.length} icon={<FolderKanban />} hint={`${projects.filter((p) => p.universe_id).length} linked to Roblox`} onClick={() => navigate('/projects')} />
-      <Stat label="Active members" value={<span>{online}<span className="text-[15px] font-normal text-fg-subtle"> / {members.length}</span></span>} icon={<Users />} hint={<PresenceStack size={16} max={6} />} onClick={() => navigate('/team')} />
+      <Stat label="Active members" value={<span>{online}<span className="text-[15px] font-normal text-fg-subtle"> / {members.length}</span></span>} icon={<Users />} hint={<PresenceStack size={18} max={6} />} onClick={() => navigate('/team')} />
       <Stat label="Open bugs" value={open.length} icon={<Bug />} tone={open.some((b) => b.severity === 'critical') ? 'danger' : undefined} hint={`${open.filter((b) => b.severity === 'critical').length} critical · ${open.filter((b) => !b.assignee_id).length} unassigned`} onClick={() => navigate('/bugs')} />
       <Stat label="Tasks completed" value={completed} icon={<CheckCircle2 />} hint="Last 30 days" tone={completed ? 'success' : undefined} />
     </div>
@@ -211,6 +213,10 @@ function PerformanceWidget() {
   const ids = projects.map((p) => p.id).join(',');
   useEffect(() => {
     const supabase = getSupabase();
+    if (isDemo()) {
+      setRows(projects.flatMap((p) => demoSnapshots(p.id, Date.now() - 2 * 86400_000)));
+      return;
+    }
     if (!supabase || !projects.length || !hasPerm(me, 'view_analytics')) {
       setRows([]);
       return;

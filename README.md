@@ -122,7 +122,7 @@ and publishing features need the desktop app).
 ### Releases
 
 Push a tag like `v2.0.0`. `.github/workflows/release.yml` builds with the secrets above and
-uploads `Corel.exe` to a GitHub release on `jakedev2/Corel`; installed copies update from there.
+uploads `Corel.exe` to a GitHub release on `Corel-Roblox/Corel`; installed copies update from there.
 
 Existing Roicon installs only check `jakedev2/Roicon` for an asset named `Roicon.exe`. To move
 them to Corel, attach the Corel binary renamed to `Roicon.exe` to a new, higher-versioned release

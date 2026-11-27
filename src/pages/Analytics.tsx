@@ -19,6 +19,7 @@ import { num, pct, timeAgo } from '@/lib/format';
 import { hasPerm, projectPerm } from '@/lib/perms';
 import { sb } from '@/lib/supabase';
 import type { GameStats, MetricRow, Snapshot } from '@/lib/types';
+import { isDemo } from '@/dev/demo';
 
 type Range = '1' | '7' | '30' | '90' | 'custom';
 
@@ -129,11 +130,11 @@ export function ProjectAnalytics({ projectId, from, to, days = 7, compact }: { p
   const [reload, setReload] = useState(0);
   const metrics = useMetrics(compact ? [] : [projectId], start, reload);
   const [live, setLive] = useState<GameStats | null | 'error'>(null);
-  const [demo, setDemo] = useState(false);
+  const [demo, setDemo] = useState(isDemo());
   const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
-    setDemo(false);
+    setDemo(isDemo());
     if (!project?.universe_id || !isDesktop) return;
     setLive(null);
     invoke<GameStats[]>('roblox_game_stats', { universeIds: [project.universe_id] }).then((s) => setLive(s[0] ?? 'error')).catch(() => setLive('error'));
@@ -386,7 +387,7 @@ function CompareView({ ids, from, to, days }: { ids: string[]; from: number; to:
 }
 
 /** Deterministic sample data, only ever shown under a "Demo data" label. */
-function demoSnapshots(projectId: string, from: number): Snapshot[] {
+export function demoSnapshots(projectId: string, from: number): Snapshot[] {
   let seed = [...projectId].reduce((a, c) => a + c.charCodeAt(0), 0);
   const rand = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
   const out: Snapshot[] = [];

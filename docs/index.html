@@ -3,166 +3,175 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d12">
   <title>Corel: the workspace for Roblox teams</title>
-  <meta name="description" content="Corel puts a countdown on your Roblox game icon before an update, then switches to the new icon right on time.">
+  <meta name="description" content="Corel is an all-in-one desktop workspace where Roblox teams manage projects, schedule countdown icon updates, track analytics and bugs, share Luau scripts, and collaborate in real time.">
   <meta property="og:title" content="Corel: the workspace for Roblox teams">
-  <meta property="og:description" content="Projects, publishing, analytics, bug tracking, scripts and real-time collaboration for Roblox teams.">
-  <meta property="og:image" content="https://jakedev2.github.io/Corel/corel-logo.png">
-  <meta name="theme-color" content="#09080f">
+  <meta property="og:description" content="Projects, publishing, analytics, bug tracking, a shared Luau library and real-time collaboration in one desktop app.">
+  <meta property="og:image" content="https://corel-roblox.github.io/Corel/img/overview.png">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="favicon.png">
+  <link rel="preload" href="fonts/ibm-plex-sans-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="sky"><span></span><i></i></div>
-
   <nav class="top">
     <div class="wrap">
-      <a class="brand" href="./"><img src="corel-logo.png" alt="">Corel</a>
+      <a class="brand" href="./"><img src="corel-mark.svg" alt="">Corel</a>
+      <a class="link opt" href="#features">Features</a>
+      <a class="link opt" href="#publish">Publish</a>
+      <a class="link opt" href="#collaboration">Collaboration</a>
+      <a class="link opt" href="brand.html">Design</a>
       <span class="grow"></span>
-      <a class="link hide-sm" href="#how">How it works</a>
-      <a class="link hide-sm" href="#features">Features</a>
-      <a class="link" href="privacy.html">Privacy</a>
-      <a class="link" href="https://github.com/jakedev2/Corel">GitHub</a>
-      <a class="btn primary" href="https://github.com/jakedev2/Corel/releases/latest/download/Corel.exe" download>Download</a>
+      <a class="link" href="https://github.com/Corel-Roblox/Corel">GitHub</a>
+      <a class="btn primary js-download" href="https://github.com/Corel-Roblox/Corel/releases/latest/download/Corel.exe">Download</a>
     </div>
   </nav>
 
-  <header class="hero wrap">
-    <div class="logo-wrap reveal"><img src="corel-logo.png" alt="Corel logo"></div>
-    <div class="pill reveal" style="--d:.08s"><b id="ver">New</b> Smoother UI, new look, and it updates itself</div>
-    <h1 class="reveal" style="--d:.14s">Your icon<br><span class="grad-text">counts down.</span></h1>
-    <p class="lead reveal" style="--d:.2s">Corel puts a countdown on your Roblox game icon before an update, then switches to the new icon right on time. On autopilot.</p>
-    <div class="btns reveal" style="--d:.26s">
-      <a class="btn primary" href="https://github.com/jakedev2/Corel/releases/latest/download/Corel.exe" download>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
-        Download for Windows
-      </a>
-      <a class="btn" href="#how">See how it works</a>
-    </div>
-    <div class="note reveal" style="--d:.32s">Free and open source · Windows 10/11 · Installs in one click and updates itself</div>
-
-    <div class="shot" id="shot">
-      <div class="frame"><img src="img/app.jpg" alt="The Corel app counting down to an update" width="1202" height="771"></div>
+  <header class="hero">
+    <div class="wrap">
+      <a class="pill reveal" href="https://github.com/Corel-Roblox/Corel/releases/latest"><b>New</b> Corel <span class="js-version">2.0</span> is here, the successor to Roicon →</a>
+      <h1 class="reveal">The workspace for <span>Roblox teams.</span></h1>
+      <p class="lead reveal">Manage your experiences, schedule countdown icon updates, track analytics and bugs, share Luau scripts and build together in real time. One desktop app.</p>
+      <div class="ctas reveal">
+        <a class="btn primary lg js-download" href="https://github.com/Corel-Roblox/Corel/releases/latest/download/Corel.exe">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10 4.5v7H3zm8-1.2L21 3v8.5H11zM3 12.5h7v7l-7-1zm8 0h10V21l-10-1.4z"/></svg>
+          Download for Windows
+        </a>
+        <a class="btn lg" href="#features">See what’s inside</a>
+      </div>
+      <p class="meta reveal">Free · Windows 10 and 11 · <span class="js-size">16 MB</span> · updates itself</p>
+      <div class="frame reveal"><img src="img/overview.png" width="2880" height="1800" alt="Corel overview dashboard showing workspace numbers, upcoming updates, recent activity and bug reports"></div>
     </div>
   </header>
 
-  <section id="how" class="wrap">
-    <div class="countdown">
-      <div class="stage reveal">
-        <div class="icon-stack" id="stack">
-          <div class="badge" id="badge">12 hours</div>
-          <img src="img/cd-12h.jpg" alt="Icon with 12 hours countdown" class="on">
-          <img src="img/cd-6h.jpg" alt="Icon with 6 hours countdown">
-          <img src="img/cd-3h.jpg" alt="Icon with 3 hours countdown">
-          <img src="img/cd-1h.jpg" alt="Icon with 1 hour countdown">
-          <img src="img/cd-new.jpg" alt="The new icon, live">
-        </div>
+  <section class="block" id="features">
+    <div class="wrap center">
+      <div class="eyebrow">Everything in one place</div>
+      <h2>Stop juggling five tools<br>to ship one update.</h2>
+      <p class="sub">Every section is connected to your projects, your team and your Roblox experiences, so nothing lives in a spreadsheet or a lost Discord message.</p>
+    </div>
+    <div class="wrap">
+      <div class="grid">
+        <div class="cell reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></div><h3>Overview</h3><p>Your whole workspace at a glance: upcoming updates, live activity, open bugs and how every game is performing. Rearrange it your way.</p></div>
+        <div class="cell reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg></div><h3>Projects</h3><p>One workspace per experience, with tasks, bugs, scripts, publishing, analytics, members and history. Paste a game link and Corel fills in the rest.</p></div>
+        <div class="cell reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.9A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0"/><path d="M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5"/></svg></div><h3>Publish</h3><p>Countdown icons that switch on schedule. Uploaded early so they pass moderation, applied on every place, live exactly on time.</p></div>
+        <div class="cell reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></div><h3>Analytics</h3><p>Visits, players online, favorites and rating over time, side-by-side comparisons, plus revenue and retention from your Creator Hub exports.</p></div>
+        <div class="cell reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 2 1.9 1.9"/><path d="M14.1 3.9 16 2"/><path d="M9 7.1v-1a3 3 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.5 13H3"/><path d="M21 13h-3.5"/></svg></div><h3>Bugs</h3><p>Reports with severity, steps, screenshots and assignees. A bug dashboard, live discussion and a full history for every fix.</p></div>
+        <div class="cell reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg></div><h3>Scripts</h3><p>A shared Luau library with a real code editor, folders, tags, favorites, and version history you can diff and restore.</p></div>
+        <div class="cell reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/></svg></div><h3>Team</h3><p>Invite by email or link. Owner, Admin, Developer and Viewer roles, per-person permissions, and who’s online right now.</p></div>
+        <div class="cell reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div><h3>Search & shortcuts</h3><p>Find any project, bug, script, task, comment or teammate with Ctrl K. Keyboard shortcuts for everything you do daily.</p></div>
+        <div class="cell reveal"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></div><h3>Notifications</h3><p>Assignments, comments, invitations, script edits and publishing reminders, in the app and on your desktop.</p></div>
       </div>
-      <div class="reveal" style="--d:.1s">
-        <div class="eyebrow">The countdown</div>
-        <h2>Hype the update, right on the icon.</h2>
-        <p class="sub">Players see the countdown in their feed, then the new icon appears the moment your update goes live. Every icon is uploaded early, so Roblox has approved it before it's needed.</p>
-        <ul class="steps-line" id="line">
-          <div class="fill" id="fill"></div>
-          <li data-i="0"><div class="dot">12</div><div><b>12 hours to go</b><br><span>The countdown starts</span></div></li>
-          <li data-i="1"><div class="dot">6</div><div><b>6 hours</b><br><span>Halfway there</span></div></li>
-          <li data-i="2"><div class="dot">3</div><div><b>3 hours</b><br><span>Players start checking back</span></div></li>
-          <li data-i="3"><div class="dot">1</div><div><b>1 hour</b><br><span>Final stretch</span></div></li>
-          <li data-i="4"><div class="dot">✓</div><div><b>Update is live</b><br><span>Your new icon goes up everywhere</span></div></li>
+    </div>
+  </section>
+
+  <section class="block" id="publish">
+    <div class="wrap split">
+      <div class="text reveal">
+        <div class="eyebrow">Publish</div>
+        <h2>Your icon counts down. On autopilot.</h2>
+        <p class="sub">Pick your new icon and an update time. Corel builds countdown icons, uploads them early so Roblox approves them in time, and switches your icon at every step, on every place.</p>
+        <ul class="checks">
+          <li><span><b>Custom steps.</b> 12h, 6h, 3h, 1h, or your own timings and overlay art.</span></li>
+          <li><span><b>Announcements</b> with a live preview, copied straight to Discord.</span></li>
+          <li><span><b>Honest status.</b> A step shows live only after Roblox accepted it.</span></li>
+          <li><span><b>Team-wide.</b> Everyone sees what’s scheduled and when.</span></li>
         </ul>
       </div>
-    </div>
-  </section>
-
-  <section class="wrap center">
-    <div class="eyebrow reveal">Four steps</div>
-    <h2 class="reveal" style="--d:.05s">Set it up once. Corel does the rest.</h2>
-    <div class="grid four">
-      <div class="card reveal" style="--d:.05s"><div class="num">01</div><h3>Connect Roblox</h3><p>Sign in with Roblox and pick the account or group that owns your game.</p></div>
-      <div class="card reveal" style="--d:.12s"><div class="num">02</div><h3>Plan the update</h3><p>Choose your current icon, your new icon and when the update drops.</p></div>
-      <div class="card reveal" style="--d:.19s"><div class="num">03</div><h3>Approved early</h3><p>Each countdown icon is uploaded ahead of time so it passes moderation first.</p></div>
-      <div class="card reveal" style="--d:.26s"><div class="num">04</div><h3>It goes live</h3><p>The icon switches on every place at each step, then the new one goes up.</p></div>
-    </div>
-  </section>
-
-  <section id="features" class="wrap center">
-    <div class="eyebrow reveal">Features</div>
-    <h2 class="reveal" style="--d:.05s">Made for update day.</h2>
-    <p class="sub reveal" style="--d:.1s">Everything runs on your PC and talks only to Roblox.</p>
-    <div class="grid three" style="text-align:left">
-      <div class="card reveal" style="--d:.05s">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12M6 22h12M7 2c0 6 10 6 10 10S7 16 7 22M17 2c0 6-10 6-10 10s10 4 10 10"/></svg></div>
-        <h3>Hourglass countdowns</h3><p>Ready-made 12, 6, 3 and 1 hour overlays, or drop in your own PNGs for any timer.</p>
-      </div>
-      <div class="card reveal" style="--d:.12s">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
-        <h3>Approved before it's needed</h3><p>Icons upload early and Corel tracks moderation, so nothing goes up unapproved.</p>
-      </div>
-      <div class="card reveal" style="--d:.19s">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></div>
-        <h3>Every place at once</h3><p>Lobbies, arenas and sub-places all switch together. Turn places on or off per game.</p>
-      </div>
-      <div class="card reveal" style="--d:.05s">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M11 18h2"/></svg></div>
-        <h3>Watch from your phone</h3><p>Scan a QR code to follow the countdown live over your home Wi-Fi.</p>
-      </div>
-      <div class="card reveal" style="--d:.12s">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></div>
-        <h3>Always up to date</h3><p>Installs in one click with a desktop shortcut, and updates itself in the background.</p>
-      </div>
-      <div class="card reveal" style="--d:.19s">
-        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-        <h3>Private by design</h3><p>No servers, no tracking. Sign-in is stored in Windows Credential Manager on your PC.</p>
+      <div class="reveal">
+        <div class="card">
+          <div class="steps">
+            <div class="step"><img src="img/cd-12h.jpg" alt="12 hours countdown icon" loading="lazy"><span>H-12</span></div>
+            <div class="step"><img src="img/cd-6h.jpg" alt="6 hours countdown icon" loading="lazy"><span>H-6</span></div>
+            <div class="step live"><img src="img/cd-3h.jpg" alt="3 hours countdown icon" loading="lazy"><span>H-3 · live</span></div>
+            <div class="step"><img src="img/cd-1h.jpg" alt="1 hour countdown icon" loading="lazy"><span>H-1</span></div>
+            <div class="step"><img src="img/cd-new.jpg" alt="New icon" loading="lazy"><span>New</span></div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="wrap center">
-    <div class="eyebrow reveal">Demo</div>
-    <h2 class="reveal" style="--d:.05s">See it in action.</h2>
-    <p class="sub reveal" style="--d:.1s">Sign in with Roblox, add a game, pick the new icon and the time. That's it.</p>
-    <div class="video reveal" style="--d:.15s"><video src="demo.mp4" controls playsinline preload="metadata"></video></div>
-  </section>
-
-  <section class="wrap center">
-    <div class="eyebrow reveal">Permissions</div>
-    <h2 class="reveal" style="--d:.05s">What Corel asks Roblox for.</h2>
-    <p class="sub reveal" style="--d:.1s">Corel uses Roblox's official sign-in (OAuth 2.0). You choose which accounts it can use, and you can disconnect any time.</p>
-    <div class="table reveal" style="--d:.15s; text-align:left">
-      <table>
-        <tr><th>Permission</th><th>Why</th><th>Risk level</th></tr>
-        <tr><td>Read profile</td><td>Show your username and avatar in the app</td><td><span class="risk low">Low</span></td></tr>
-        <tr><td>Read assets</td><td>Check that your countdown icons passed moderation</td><td><span class="risk low">Low</span></td></tr>
-        <tr><td>Write assets</td><td>Upload the countdown icons and set them as your place icons</td><td><span class="risk med">Medium</span></td></tr>
-      </table>
+  <section class="block">
+    <div class="wrap center">
+      <div class="eyebrow">A closer look</div>
+      <h2>Built like a real developer tool.</h2>
+      <p class="sub">Dark by default, dense where it matters, and fast to navigate. Light theme and six accent colours if you prefer.</p>
+      <div class="tabs" role="tablist" aria-label="Screens">
+        <button class="tab" role="tab" aria-selected="true" data-shot="tasks">Project board</button>
+        <button class="tab" role="tab" aria-selected="false" data-shot="bug">Bug report</button>
+        <button class="tab" role="tab" aria-selected="false" data-shot="scripts">Script editor</button>
+        <button class="tab" role="tab" aria-selected="false" data-shot="analytics">Analytics</button>
+        <button class="tab" role="tab" aria-selected="false" data-shot="team">Team</button>
+        <button class="tab" role="tab" aria-selected="false" data-shot="projects">Projects</button>
+      </div>
+      <div class="gallery frame flat">
+        <img class="on" data-shot="tasks" src="img/tasks.png" width="2880" height="1800" alt="Project workspace with a task board" loading="lazy">
+        <img data-shot="bug" src="img/bug.png" width="2880" height="1800" alt="Bug report with status, severity, assignee and discussion" loading="lazy">
+        <img data-shot="scripts" src="img/scripts.png" width="2880" height="1800" alt="Luau script editor with syntax highlighting" loading="lazy">
+        <img data-shot="analytics" src="img/analytics.png" width="2880" height="1800" alt="Analytics with players online chart (demo data)" loading="lazy">
+        <img data-shot="team" src="img/team.png" width="2880" height="1800" alt="Team members with roles and online status" loading="lazy">
+        <img data-shot="projects" src="img/projects.png" width="2880" height="1800" alt="Projects grid" loading="lazy">
+      </div>
     </div>
   </section>
 
-  <div class="wrap">
-    <div class="cta reveal">
-      <img src="corel-logo.png" alt="">
-      <h2>Your next update deserves a countdown.</h2>
-      <p>Free, open source and ready in under a minute.</p>
-      <a class="btn primary" href="https://github.com/jakedev2/Corel/releases/latest/download/Corel.exe" download>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
-        Download for Windows
-      </a>
+  <section class="block" id="collaboration">
+    <div class="wrap split rev">
+      <div class="text reveal">
+        <div class="eyebrow">Real-time collaboration</div>
+        <h2>Your whole team, on the same page. Literally.</h2>
+        <p class="sub">When someone reports a bug, comments, moves a task or saves a script, everyone with access sees it instantly. No refreshing.</p>
+        <ul class="checks">
+          <li><span><b>Presence</b>: see who’s online, which project they’re in and who’s editing a script.</span></li>
+          <li><span><b>Safe editing</b>: saves never overwrite a teammate’s work, and every version can be restored.</span></li>
+          <li><span><b>Roles that are enforced</b> by the server, not just hidden buttons.</span></li>
+          <li><span><b>Live activity feed</b> filtered by project and event type.</span></li>
+        </ul>
+      </div>
+      <div class="shot reveal"><img src="img/scripts.png" width="2880" height="1800" alt="Shared script editor" loading="lazy"></div>
     </div>
-  </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap center">
+      <div class="eyebrow">Your data stays yours</div>
+      <h2>Private by design.</h2>
+      <p class="sub">Roblox sign-in tokens never leave your PC. Your workspace sign-in is encrypted with your Windows account, and every row in the database is protected by access rules.</p>
+      <div class="stats">
+        <div><b>0</b><span>tracking or telemetry</span></div>
+        <div><b>4</b><span>team roles, customizable</span></div>
+        <div><b>15 min</b><span>analytics snapshots</span></div>
+        <div><b>∞</b><span>script versions kept</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="wrap">
+      <img class="mark" src="corel-mark.svg" alt="">
+      <h2>Ship your next update with Corel.</h2>
+      <p class="sub" style="margin-left:auto;margin-right:auto">Free for Windows. Coming from Roicon? Your experiences and schedules come with you.</p>
+      <div class="hero" style="padding:0;overflow:visible"><div class="ctas">
+        <a class="btn primary lg js-download" href="https://github.com/Corel-Roblox/Corel/releases/latest/download/Corel.exe">Download for Windows</a>
+        <a class="btn lg" href="https://github.com/Corel-Roblox/Corel">View on GitHub</a>
+      </div></div>
+    </div>
+  </section>
 
   <footer>
     <div class="wrap">
-      <div class="row">
-        <a class="brand" href="./"><img src="corel-logo.png" alt="">Corel</a>
-        <span class="grow"></span>
-        <a href="privacy.html">Privacy Policy</a>
-        <a href="terms.html">Terms of Service</a>
-        <a href="https://github.com/jakedev2/Corel/issues">Contact</a>
-      </div>
-      <p>© 2026 Corel. Roblox is a trademark of Roblox Corporation. Corel is an independent tool and is not affiliated with, endorsed by or sponsored by Roblox Corporation.</p>
+      <a class="brand" href="./"><img src="corel-mark.svg" alt="">Corel</a>
+      <span>© 2026 Corel</span>
+      <span class="grow"></span>
+      <a href="brand.html">Design system</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="https://github.com/Corel-Roblox/Corel/issues">Contact</a>
     </div>
+    <div class="wrap" style="margin-top:12px"><span>Corel is not affiliated with, endorsed by or sponsored by Roblox Corporation.</span></div>
   </footer>
-
   <script src="site.js"></script>
 </body>
 </html>
