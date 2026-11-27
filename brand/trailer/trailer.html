@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Corel trailer</title>
+<!--
+  Corel trailer, 1920x1080. Every frame is a pure function of time: seek(t) positions
+  everything, so render.mjs can capture it frame by frame. Open this file in a browser
+  and it plays in real time (press R to restart).
+-->
+<style>
+  @font-face { font-family: Plex; font-weight: 400; src: url(../../docs/fonts/ibm-plex-sans-latin-400-normal.woff2); }
+  @font-face { font-family: Plex; font-weight: 500; src: url(../../docs/fonts/ibm-plex-sans-latin-500-normal.woff2); }
+  @font-face { font-family: Plex; font-weight: 600; src: url(../../docs/fonts/ibm-plex-sans-latin-600-normal.woff2); }
+  @font-face { font-family: Mono; font-weight: 400; src: url(../../docs/fonts/jetbrains-mono-latin-400-normal.woff2); }
+  :root { --bg: #0b0d12; --fg: #eceef3; --muted: #9aa2b4; --subtle: #6b7385; --line: rgb(255 255 255 / .08); --accent: #22c55e; --accent-text: #4ade80; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--fg); font-family: Plex, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
+  #stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); }
+  .layer { position: absolute; inset: 0; will-change: opacity, transform; }
+  .grid-bg { position: absolute; inset: -200px; background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 80px 80px; mask-image: radial-gradient(ellipse at center, #000 20%, transparent 70%); opacity: .5; }
+  .glow { position: absolute; width: 1400px; height: 1400px; border-radius: 50%; background: radial-gradient(closest-side, rgb(34 197 94 / .16), transparent); left: 260px; top: -160px; }
+  .center { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .eyebrow { font-family: Mono; font-size: 22px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-text); }
+  .h1 { font-size: 132px; font-weight: 600; letter-spacing: -0.045em; line-height: 1; }
+  .h2 { font-size: 76px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.04; }
+  .sub { font-size: 30px; color: var(--muted); line-height: 1.4; }
+  .muted { color: var(--muted); }
+  .frame { position: absolute; border-radius: 22px; border: 1px solid rgb(255 255 255 / .12); background: #090b0f; padding: 8px; box-shadow: 0 60px 160px -40px rgb(0 0 0 / .9), 0 0 0 1px rgb(255 255 255 / .02); overflow: hidden; }
+  .frame .clip { width: 100%; height: 100%; overflow: hidden; border-radius: 15px; position: relative; }
+  .frame img { position: absolute; left: 0; top: 0; width: 100%; transform-origin: 0 0; }
+  .caption { position: absolute; left: 130px; top: 130px; width: 640px; }
+  .caption .h2 { margin-top: 22px; }
+  .caption .sub { margin-top: 26px; }
+  .toast { position: absolute; display: flex; align-items: center; gap: 18px; padding: 20px 26px; border-radius: 16px; background: #181c24; border: 1px solid rgb(255 255 255 / .12); box-shadow: 0 30px 80px -20px rgb(0 0 0 / .8); font-size: 24px; white-space: nowrap; }
+  .av { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-weight: 600; font-size: 18px; flex: none; position: relative; }
+  .av .dot { position: absolute; right: -2px; bottom: -2px; width: 15px; height: 15px; border-radius: 50%; background: var(--accent-text); border: 3px solid #181c24; }
+  .pill { display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px; border-radius: 999px; border: 1px solid rgb(255 255 255 / .14); background: #12151c; font-size: 22px; color: var(--muted); }
+  .icon-big { position: absolute; width: 520px; height: 520px; border-radius: 64px; overflow: hidden; border: 1px solid rgb(255 255 255 / .14); box-shadow: 0 50px 140px -30px rgb(0 0 0 / .9); }
+  .icon-big img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .steps { position: absolute; display: flex; gap: 18px; }
+  .steps div { width: 120px; text-align: center; font-family: Mono; font-size: 20px; color: var(--subtle); }
+  .steps div i { display: block; height: 6px; border-radius: 3px; background: rgb(255 255 255 / .1); margin-bottom: 14px; }
+  .steps div.on { color: var(--accent-text); }
+  .steps div.on i { background: var(--accent); }
+  .countdown { position: absolute; font-family: Mono; font-size: 96px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .feature { position: absolute; width: 470px; height: 190px; border-radius: 22px; border: 1px solid var(--line); background: #0f1217; padding: 34px 36px; }
+  .feature svg { width: 40px; height: 40px; color: var(--accent-text); }
+  .feature b { display: block; margin-top: 22px; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; }
+  .word { display: block; }
+  .bar { position: absolute; left: 0; bottom: 0; height: 4px; background: var(--accent); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="layer" id="bg"><div class="grid-bg" id="grid"></div><div class="glow" id="glow"></div></div>
+
+  <!-- 1. Logo -->
+  <div class="layer center" id="s1">
+    <svg id="cube" viewBox="230 190 564 644" width="250" height="285" style="overflow:visible">
+      <path id="f1" d="M512 214 770 363 512 512 254 363Z" fill="#4ADE80"/>
+      <path id="f2" d="M254 363 512 512 512 810 254 661Z" fill="#22C55E"/>
+      <path id="f3" d="M512 512 770 363 770 661 512 810Z" fill="#15803D"/>
+    </svg>
+    <div id="s1word" class="h1" style="margin-top:56px;font-size:150px">Corel</div>
+    <div id="s1tag" class="sub" style="margin-top:22px">The workspace for Roblox teams</div>
+  </div>
+
+  <!-- 2. Kinetic words -->
+  <div class="layer center" id="s2">
+    <div class="h1" style="font-size:170px;line-height:1.02">
+      <span class="word" id="w1">Plan it.</span>
+      <span class="word" id="w2">Build it.</span>
+      <span class="word" id="w3">Ship it.</span>
+      <span class="word" id="w4" style="color:var(--accent-text)">Together.</span>
+    </div>
+  </div>
+
+  <!-- 3. Overview -->
+  <div class="layer" id="s3">
+    <div class="center" style="position:absolute;left:0;right:0;top:92px" id="s3cap">
+      <div class="eyebrow">Overview</div>
+      <div class="h2" style="margin-top:20px">Your whole workspace, at a glance.</div>
+    </div>
+    <div class="frame" id="s3frame" style="left:230px;top:330px;width:1460px;height:913px"><div class="clip"><img src="../../docs/img/overview.png" alt=""></div></div>
+  </div>
+
+  <!-- 4. Publish -->
+  <div class="layer" id="s4">
+    <div class="caption" id="s4cap" style="top:250px">
+      <div class="eyebrow">Publish</div>
+      <div class="h2">Countdown icons.<br>On autopilot.</div>
+      <div class="sub">Corel uploads them early so Roblox approves them in time, then switches your icon at every step.</div>
+    </div>
+    <div class="icon-big" id="s4icon" style="left:1100px;top:170px">
+      <img id="ic0" src="../../docs/img/cd-12h.jpg" alt=""><img id="ic1" src="../../docs/img/cd-6h.jpg" alt=""><img id="ic2" src="../../docs/img/cd-3h.jpg" alt=""><img id="ic3" src="../../docs/img/cd-1h.jpg" alt=""><img id="ic4" src="../../docs/img/cd-new.jpg" alt="">
+    </div>
+    <div class="steps" id="s4steps" style="left:1050px;top:760px">
+      <div><i></i>H-12</div><div><i></i>H-6</div><div><i></i>H-3</div><div><i></i>H-1</div><div><i></i>NEW</div>
+    </div>
+    <div class="countdown" id="s4count" style="left:1100px;top:830px;width:520px;text-align:center">12:00:00</div>
+  </div>
+
+  <!-- 5. Analytics -->
+  <div class="layer" id="s5">
+    <div class="caption" id="s5cap" style="top:300px;width:560px">
+      <div class="eyebrow">Analytics</div>
+      <div class="h2">Every experience, measured.</div>
+      <div class="sub">Visits, players online, favorites and rating over time. Compare games side by side.</div>
+    </div>
+    <div class="frame" id="s5frame" style="left:780px;top:150px;width:1240px;height:780px"><div class="clip"><img src="../../docs/img/analytics.png" alt="" style="width:2160px;left:-338px;top:-352px"></div></div>
+    <div class="pill" id="s5note" style="position:absolute;left:1640px;top:960px;font-size:18px;padding:8px 14px">Sample data</div>
+  </div>
+
+  <!-- 6. Bugs -->
+  <div class="layer" id="s6">
+    <div class="frame" id="s6frame" style="left:-100px;top:150px;width:1240px;height:780px"><div class="clip"><img src="../../docs/img/bug.png" alt="" style="width:2160px;left:-955px;top:-60px"></div></div>
+    <div class="caption" id="s6cap" style="left:1240px;top:300px;width:560px">
+      <div class="eyebrow">Bugs</div>
+      <div class="h2">Squash bugs together.</div>
+      <div class="sub">Severity, steps, screenshots and assignees, with live discussion on every report.</div>
+    </div>
+    <div class="toast" id="s6toast" style="left:1240px;top:740px">
+      <div class="av" style="background:hsl(220 45% 30%);color:hsl(220 80% 88%)">AR<span class="dot"></span></div>
+      <span><b style="font-weight:600">Alex Rivera</b> <span class="muted">commented on BUG-31</span></span>
+    </div>
+  </div>
+
+  <!-- 7. Scripts -->
+  <div class="layer" id="s7">
+    <div class="caption" id="s7cap" style="top:300px;width:560px">
+      <div class="eyebrow">Scripts</div>
+      <div class="h2">A shared Luau library.</div>
+      <div class="sub">A real code editor with version history. Saves never overwrite a teammate.</div>
+    </div>
+    <div class="frame" id="s7frame" style="left:780px;top:150px;width:1240px;height:780px"><div class="clip"><img src="../../docs/img/scripts.png" alt="" style="width:2400px;left:-930px;top:-40px"></div></div>
+    <div class="toast" id="s7toast" style="left:860px;top:820px">
+      <div class="av" style="background:hsl(150 45% 26%);color:hsl(150 80% 85%)">SL<span class="dot"></span></div>
+      <span><b style="font-weight:600">Sam Lee</b> <span class="muted">is editing · line 21</span></span>
+    </div>
+  </div>
+
+  <!-- 8. Collaboration -->
+  <div class="layer" id="s8">
+    <div class="frame" id="s8frame" style="left:230px;top:200px;width:1460px;height:913px;filter:blur(6px) brightness(.45)"><div class="clip"><img src="../../docs/img/tasks.png" alt=""></div></div>
+    <div class="center" style="position:absolute;left:0;right:0;top:110px" id="s8cap">
+      <div class="eyebrow">Real-time collaboration</div>
+      <div class="h2" style="margin-top:20px">Your whole team. Live.</div>
+    </div>
+    <div class="toast" id="t1" style="left:420px;top:420px"><div class="av" style="background:hsl(135 45% 28%);color:hsl(135 80% 85%)">J<span class="dot"></span></div><span><b style="font-weight:600">Jake</b> <span class="muted">completed task Build the winter lobby</span></span></div>
+    <div class="toast" id="t2" style="left:760px;top:560px"><div class="av" style="background:hsl(280 45% 32%);color:hsl(280 80% 88%)">MC<span class="dot"></span></div><span><b style="font-weight:600">Mia Chen</b> <span class="muted">scheduled an update for Deep Dive</span></span></div>
+    <div class="toast" id="t3" style="left:360px;top:700px"><div class="av" style="background:hsl(200 45% 30%);color:hsl(200 80% 88%)">AR<span class="dot"></span></div><span><b style="font-weight:600">Alex Rivera</b> <span class="muted">marked BUG-26 as fixed</span></span></div>
+    <div class="toast" id="t4" style="left:880px;top:840px"><div class="av" style="background:hsl(30 50% 30%);color:hsl(30 85% 85%)">LP<span class="dot"></span></div><span><b style="font-weight:600">Leo Park</b> <span class="muted">joined the team</span></span></div>
+  </div>
+
+  <!-- 9. Features -->
+  <div class="layer" id="s9">
+    <div class="center" style="position:absolute;left:0;right:0;top:80px" id="s9cap"><div class="h2">Everything in one app.</div></div>
+    <div id="feats"></div>
+  </div>
+
+  <!-- 10. End card -->
+  <div class="layer center" id="s10">
+    <svg viewBox="230 190 564 644" width="150" height="171" id="endcube"><path d="M512 214 770 363 512 512 254 363Z" fill="#4ADE80"/><path d="M254 363 512 512 512 810 254 661Z" fill="#22C55E"/><path d="M512 512 770 363 770 661 512 810Z" fill="#15803D"/></svg>
+    <div class="h1" style="margin-top:44px" id="endword">Corel</div>
+    <div class="sub" style="margin-top:20px" id="endtag">The workspace for Roblox teams.</div>
+    <div style="margin-top:56px;display:flex;gap:18px" id="endcta">
+      <span class="pill" style="background:var(--accent);color:#04210f;border-color:transparent;font-weight:600;font-size:26px;padding:16px 30px">Download free at corel.site</span>
+    </div>
+    <div class="sub" style="margin-top:26px;font-size:22px;color:var(--subtle)" id="endmeta">Windows 10 and 11</div>
+  </div>
+
+  <div class="bar" id="bar"></div>
+</div>
+
+<script>
+const DURATION = 43;
+const $ = (id) => document.getElementById(id);
+const clamp = (v) => Math.min(1, Math.max(0, v));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const easeBack = (x) => { const c = 1.4; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lerp = (a, b, x) => a + (b - a) * x;
+
+// Scene visibility: fade in at a, out at b.
+function scene(el, t, a, b, fade = 0.5) {
+  const v = Math.min(prog(t, a, a + fade), 1 - prog(t, b - fade, b));
+  el.style.opacity = v;
+  el.style.visibility = v <= 0.001 ? 'hidden' : 'visible';
+  return v;
+}
+// Element enter: rises in.
+function enter(el, t, a, d = 0.7, dy = 40) {
+  const x = easeOut(prog(t, a, a + d));
+  el.style.opacity = x;
+  el.style.transform = `translateY(${(1 - x) * dy}px)`;
+  return x;
+}
+
+const FEATURES = [
+  ['Projects', 'M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z'],
+  ['Publish', 'M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1zM12 15l-3-3a22 22 0 0 1 2-3.9A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z'],
+  ['Analytics', 'M3 3v18h18M18 17V9M13 17V5M8 17v-3'],
+  ['Bugs', 'M9 7.1v-1a3 3 0 1 1 6 0v1M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6M12 20v-9M6.5 13H3M21 13h-3.5'],
+  ['Scripts', 'm18 16 4-4-4-4M6 8l-4 4 4 4M14.5 4l-5 16'],
+  ['Team', 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8'],
+  ['Global search', 'M11 3a8 8 0 1 1 0 16 8 8 0 0 1 0-16M21 21l-4.3-4.3'],
+  ['Notifications', 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0'],
+  ['Roles & permissions', 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10'],
+];
+$('feats').innerHTML = FEATURES.map(([name, d], i) => {
+  const x = 175 + (i % 3) * 540, y = 250 + Math.floor(i / 3) * 230;
+  return `<div class="feature" id="ft${i}" style="left:${x}px;top:${y}px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg><b>${name}</b></div>`;
+}).join('');
+
+function fmt(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+  return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':');
+}
+
+function seek(t) {
+  // Background drift
+  $('glow').style.transform = `translate(${Math.sin(t * 0.25) * 160}px, ${Math.cos(t * 0.2) * 90}px)`;
+  $('grid').style.transform = `translateY(${-(t * 12) % 80}px)`;
+  $('bar').style.width = `${(t / DURATION) * 100}%`;
+
+  // 1. Logo build (0 - 4)
+  scene($('s1'), t, -1, 4.0, 0.45);
+  [['f1', 0.15, 0, -160], ['f2', 0.35, -150, 90], ['f3', 0.55, 150, 90]].forEach(([id, a, dx, dy]) => {
+    const x = easeBack(prog(t, a, a + 0.9));
+    const el = $(id);
+    el.style.transform = `translate(${(1 - x) * dx}px, ${(1 - x) * dy}px)`;
+    el.style.opacity = clamp(prog(t, a, a + 0.4));
+  });
+  $('cube').style.transform = `scale(${lerp(0.9, 1, easeOut(prog(t, 0, 2.2)))})`;
+  $('cube').style.filter = `drop-shadow(0 0 ${lerp(0, 60, easeOut(prog(t, 1.2, 2.4)))}px rgb(34 197 94 / .45))`;
+  enter($('s1word'), t, 1.6, 0.8, 30);
+  enter($('s1tag'), t, 2.1, 0.8, 24);
+
+  // 2. Words (4 - 8)
+  scene($('s2'), t, 4.0, 8.0, 0.4);
+  ['w1', 'w2', 'w3', 'w4'].forEach((id, i) => {
+    const a = 4.2 + i * 0.6;
+    const x = easeOut(prog(t, a, a + 0.55));
+    $(id).style.opacity = x * (i < 3 ? lerp(1, 0.35, prog(t, a + 0.6, a + 1.0)) : 1);
+    $(id).style.transform = `translateY(${(1 - x) * 60}px)`;
+    $(id).style.filter = `blur(${(1 - x) * 12}px)`;
+  });
+
+  // 3. Overview (8 - 13.5)
+  scene($('s3'), t, 8.0, 13.5, 0.5);
+  enter($('s3cap'), t, 8.15, 0.8, 30);
+  {
+    const x = easeOut(prog(t, 8.1, 9.5));
+    const push = easeInOut(prog(t, 9.5, 13.5));
+    $('s3frame').style.transform = `perspective(1800px) rotateX(${(1 - x) * 18}deg) translateY(${(1 - x) * 140 - push * 120}px) scale(${lerp(0.92, 1, x) + push * 0.05})`;
+    $('s3frame').style.opacity = x;
+  }
+
+  // 4. Publish (13.5 - 19)
+  scene($('s4'), t, 13.5, 19.0, 0.5);
+  enter($('s4cap'), t, 13.6, 0.8, 30);
+  {
+    const x = easeBack(prog(t, 13.7, 14.6));
+    $('s4icon').style.transform = `scale(${lerp(0.8, 1, x)})`;
+    $('s4icon').style.opacity = clamp(prog(t, 13.7, 14.2));
+    const step = Math.min(4, Math.max(0, Math.floor((t - 14.4) / 0.9)));
+    for (let i = 0; i < 5; i++) {
+      const start = 14.4 + i * 0.9;
+      $('ic' + i).style.opacity = i === 0 ? 1 : easeOut(prog(t, start, start + 0.3));
+    }
+    [...$('s4steps').children].forEach((el, i) => el.classList.toggle('on', i <= step && t > 14.4));
+    enter($('s4steps'), t, 14.0, 0.6, 20);
+    const remain = t < 14.4 ? 12 * 3600 : Math.max(0, 12 * 3600 * (1 - (t - 14.4) / 4.1));
+    $('s4count').textContent = remain <= 0 ? 'Live now' : fmt(remain);
+    $('s4count').style.color = remain <= 0 ? 'var(--accent-text)' : 'var(--fg)';
+    enter($('s4count'), t, 14.1, 0.6, 20);
+  }
+
+  // 5. Analytics (19 - 23.5)
+  scene($('s5'), t, 19.0, 23.5, 0.5);
+  enter($('s5cap'), t, 19.1, 0.8, 30);
+  enter($('s5note'), t, 19.8, 0.6, 10);
+  {
+    const x = easeOut(prog(t, 19.1, 20.2));
+    const drift = easeInOut(prog(t, 20.2, 23.5));
+    $('s5frame').style.transform = `translateX(${(1 - x) * 200 - drift * 40}px) scale(${1 + drift * 0.04})`;
+    $('s5frame').style.opacity = x;
+  }
+
+  // 6. Bugs (23.5 - 28)
+  scene($('s6'), t, 23.5, 28.0, 0.5);
+  enter($('s6cap'), t, 23.6, 0.8, 30);
+  {
+    const x = easeOut(prog(t, 23.6, 24.7));
+    const drift = easeInOut(prog(t, 24.7, 28));
+    $('s6frame').style.transform = `translateX(${-(1 - x) * 200 + drift * 40}px) scale(${1 + drift * 0.04})`;
+    $('s6frame').style.opacity = x;
+    const tx = easeBack(prog(t, 25.3, 26.0));
+    $('s6toast').style.opacity = clamp(prog(t, 25.3, 25.6));
+    $('s6toast').style.transform = `translateY(${(1 - tx) * 40}px) scale(${lerp(0.94, 1, tx)})`;
+  }
+
+  // 7. Scripts (28 - 32.5)
+  scene($('s7'), t, 28.0, 32.5, 0.5);
+  enter($('s7cap'), t, 28.1, 0.8, 30);
+  {
+    const x = easeOut(prog(t, 28.1, 29.2));
+    const drift = easeInOut(prog(t, 29.2, 32.5));
+    $('s7frame').style.transform = `translateX(${(1 - x) * 200 - drift * 40}px) translateY(${-drift * 30}px) scale(${1 + drift * 0.05})`;
+    $('s7frame').style.opacity = x;
+    const tx = easeBack(prog(t, 29.8, 30.5));
+    $('s7toast').style.opacity = clamp(prog(t, 29.8, 30.1));
+    $('s7toast').style.transform = `translateY(${(1 - tx) * 40}px) scale(${lerp(0.94, 1, tx)})`;
+  }
+
+  // 8. Collaboration (32.5 - 36.8)
+  scene($('s8'), t, 32.5, 36.8, 0.5);
+  enter($('s8cap'), t, 32.6, 0.8, 30);
+  $('s8frame').style.transform = `scale(${1.05 - easeInOut(prog(t, 32.5, 36.8)) * 0.05})`;
+  ['t1', 't2', 't3', 't4'].forEach((id, i) => {
+    const a = 33.2 + i * 0.55;
+    const x = easeBack(prog(t, a, a + 0.6));
+    $(id).style.opacity = clamp(prog(t, a, a + 0.25));
+    $(id).style.transform = `translateY(${(1 - x) * 50}px) scale(${lerp(0.9, 1, x)})`;
+  });
+
+  // 9. Features (36.8 - 40)
+  scene($('s9'), t, 36.8, 40.0, 0.45);
+  enter($('s9cap'), t, 36.9, 0.6, 24);
+  FEATURES.forEach((_, i) => {
+    const a = 37.1 + i * 0.12;
+    const x = easeBack(prog(t, a, a + 0.5));
+    const el = $('ft' + i);
+    el.style.opacity = clamp(prog(t, a, a + 0.25));
+    el.style.transform = `translateY(${(1 - x) * 40}px) scale(${lerp(0.92, 1, x)})`;
+  });
+
+  // 10. End card (40 - 43)
+  scene($('s10'), t, 40.0, 44, 0.5);
+  {
+    const x = easeBack(prog(t, 40.1, 40.9));
+    $('endcube').style.transform = `scale(${lerp(0.7, 1, x)})`;
+    $('endcube').style.filter = `drop-shadow(0 0 ${lerp(0, 50, easeOut(prog(t, 40.4, 41.2)))}px rgb(34 197 94 / .4))`;
+  }
+  enter($('endword'), t, 40.4, 0.7, 26);
+  enter($('endtag'), t, 40.7, 0.7, 22);
+  enter($('endcta'), t, 41.0, 0.7, 22);
+  enter($('endmeta'), t, 41.2, 0.7, 18);
+  $('stage').style.opacity = 1 - prog(t, 42.4, 43);
+}
+
+window.seek = seek;
+window.DURATION = DURATION;
+window.ready = Promise.all([document.fonts.ready, ...[...document.images].map((i) => i.decode().catch(() => {}))]);
+
+// Real-time playback when opened directly (not while rendering).
+if (!new URLSearchParams(location.search).has('render')) {
+  let t0 = performance.now();
+  const loop = () => { const t = (performance.now() - t0) / 1000; seek(t % (DURATION + 1)); requestAnimationFrame(loop); };
+  window.ready.then(loop);
+  addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'r') t0 = performance.now(); });
+} else {
+  seek(0);
+}
+</script>
+</body>
+</html>
