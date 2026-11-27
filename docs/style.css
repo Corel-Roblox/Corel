@@ -164,3 +164,5 @@ main.doc code { font-family: var(--mono); font-size: 13.5px; color: var(--fg); }
 
 .video { margin: 40px auto 0; max-width: 1080px; border-radius: 14px; border: 1px solid var(--line-strong); background: var(--sunken); padding: 6px; box-shadow: 0 40px 120px -30px rgb(0 0 0 / 0.8); }
 .video video { display: block; width: 100%; height: auto; border-radius: 9px; background: #000; }
+.btn.discord:hover { border-color: rgb(88 101 242 / 0.6); background: rgb(88 101 242 / 0.12); }
+.btn.discord svg { color: #8b95f8; }
