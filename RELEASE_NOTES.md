@@ -1,5 +1,9 @@
 **Download `Corel.exe`** and run it. It installs itself, adds Desktop and Start menu shortcuts, and opens. Coming from Roicon? Corel imports your experiences, schedules and Roblox sign-in on first start.
 
+### 2.0.4
+- Toggle switches sit correctly in both positions.
+- The search box (Ctrl K) no longer shows an oversized outline.
+
 ### 2.0.3
 - Team pictures: shows progress while uploading and explains exactly what went wrong if the picture can’t be saved.
 

@@ -141,9 +141,9 @@ export function Switch({ checked, onChange, label, disabled, id }: { checked: bo
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={cn('relative h-[18px] w-8 shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50', checked ? 'bg-accent' : 'bg-active border border-line-strong')}
+      className={cn('relative block h-[18px] w-8 shrink-0 rounded-full p-0 transition-colors duration-200 disabled:opacity-50', checked ? 'bg-accent' : 'bg-active shadow-[inset_0_0_0_1px_var(--line-strong)]')}
     >
-      <span className={cn('absolute top-1/2 size-3.5 -translate-y-1/2 rounded-full shadow transition-transform duration-200', checked ? 'translate-x-[15px] bg-accent-fg' : 'translate-x-[2px] bg-fg-muted')} />
+      <span className={cn('absolute top-[2px] size-3.5 rounded-full shadow transition-[left,background-color] duration-200', checked ? 'left-[16px] bg-accent-fg' : 'left-[2px] bg-fg-muted')} />
     </button>
   );
 }
