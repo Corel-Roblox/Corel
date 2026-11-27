@@ -31,6 +31,28 @@ pub fn show_window() {
     }
 }
 
+/// Window corners on Windows 11 (0 = round, 1 = small round, 2 = square), drawn by the
+/// system compositor so they stay smooth and keep the native shadow. Windows 10 ignores this.
+pub fn set_window_corners(style: u8) {
+    use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND, DWMWCP_ROUND, DWMWCP_ROUNDSMALL};
+    let h = HWND.load(Ordering::Relaxed);
+    if h == 0 {
+        return;
+    }
+    let hwnd = h as windows_sys::Win32::Foundation::HWND;
+    let pref = match style {
+        1 => DWMWCP_ROUNDSMALL,
+        2 => DWMWCP_DONOTROUND,
+        _ => DWMWCP_ROUND,
+    };
+    // a hairline border in the app's line colour (COLORREF is 0x00BBGGRR) so the rounded edge reads cleanly
+    let border: u32 = 57 << 16 | 45 << 8 | 44;
+    unsafe {
+        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE as u32, &pref as *const _ as *const _, std::mem::size_of_val(&pref) as u32);
+        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR as u32, &border as *const u32 as *const _, 4);
+    }
+}
+
 pub fn hide_window() {
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
     let h = HWND.load(Ordering::Relaxed);

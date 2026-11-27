@@ -27,10 +27,20 @@ pub struct Settings {
     pub use_24h: bool,
     /// Download new Roicon versions from GitHub automatically.
     pub auto_update: bool,
+    /// Index into `ui::ACCENTS` (Violet, Blue, Teal, Rose, Sunset, Graphite).
+    pub accent: usize,
+    /// Window corners on Windows 11: 0 = round, 1 = small round, 2 = square.
+    pub corners: u8,
+    /// Background effects: 0 = full, 1 = subtle, 2 = off.
+    pub effects: u8,
+    /// Interface size (zoom), 0.9 to 1.25.
+    pub ui_scale: f32,
+    /// Turn off decorative animation (pulses, shimmer, confetti).
+    pub reduce_motion: bool,
 }
 impl Default for Settings {
     fn default() -> Self {
-        Self { close_to_tray: true, launch_at_login: true, notifications: true, use_24h: false, auto_update: true }
+        Self { close_to_tray: true, launch_at_login: true, notifications: true, use_24h: false, auto_update: true, accent: 0, corners: 0, effects: 0, ui_scale: 1.0, reduce_motion: false }
     }
 }
 

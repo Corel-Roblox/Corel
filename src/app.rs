@@ -5,7 +5,7 @@ use crate::relay::{self, Relay};
 use crate::roblox;
 use crate::scheduler::{Scheduler, StepInput};
 use crate::store::*;
-use crate::ui::{self, Btn, ChipKind, Icon, ACCENT, ACCENT_TXT, AMBER, DIM, GREEN, LINE, LINE2, MUTED, PANEL, PANEL3, RED, TEXT};
+use crate::ui::{self, Btn, ChipKind, Icon, AMBER, DIM, GREEN, LINE, LINE2, MUTED, PANEL, PANEL3, RED, TEXT};
 use chrono::{Datelike, Duration as CDur, Local, NaiveDate, NaiveTime, TimeZone, Timelike};
 use egui::{pos2, vec2, Align, Align2, Color32, Context, Frame, Id, Layout, Margin, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, TextureHandle, Ui, Vec2, ViewportCommand};
 use std::collections::{HashMap, HashSet};
@@ -79,6 +79,11 @@ pub struct App {
     page_key: String,
     modal_t0: f64,
     modal_open: bool,
+    /// Appearance values last pushed to egui / Windows, so they're only re-applied on change.
+    applied_accent: Option<usize>,
+    applied_corners: Option<u8>,
+    /// Windows' own "Animation effects" switch is off.
+    sys_reduce_motion: bool,
 }
 
 /// Linear filtering with mipmaps, so big icons shrink smoothly instead of looking jagged.
@@ -123,12 +128,12 @@ fn fmt_left(ms: i64) -> String {
 
 fn exp_status(e: &Experience, now: i64) -> (String, Color32) {
     match &e.update {
-        Some(u) if u.status == Status::Preparing => ("Uploading icons…".into(), ACCENT_TXT),
+        Some(u) if u.status == Status::Preparing => ("Uploading icons…".into(), ui::accent_txt()),
         Some(u) if u.status == Status::Restoring => ("Restoring original icon…".into(), AMBER),
         Some(u) if u.status == Status::Scheduled => match u.next_step() {
-            Some(s) if s.at.unwrap_or(now) <= now => (if s.apply == Apply::Waiting { format!("{} waiting for approval", s.label) } else { format!("{} going up now", s.label) }, ACCENT_TXT),
-            Some(s) => (format!("{} in {}", s.label, fmt_left(s.at.unwrap_or(now) - now)), ACCENT_TXT),
-            None => ("Finishing…".into(), ACCENT_TXT),
+            Some(s) if s.at.unwrap_or(now) <= now => (if s.apply == Apply::Waiting { format!("{} waiting for approval", s.label) } else { format!("{} going up now", s.label) }, ui::accent_txt()),
+            Some(s) => (format!("{} in {}", s.label, fmt_left(s.at.unwrap_or(now) - now)), ui::accent_txt()),
+            None => ("Finishing…".into(), ui::accent_txt()),
         },
         Some(u) if u.status == Status::Done => ("Update complete".into(), GREEN),
         Some(u) if u.status == Status::Cancelled => ("Update cancelled".into(), DIM),
@@ -183,6 +188,9 @@ impl App {
             page_key: String::new(),
             modal_t0: 0.0,
             modal_open: false,
+            applied_accent: None,
+            applied_corners: None,
+            sys_reduce_motion: ui::system_reduce_motion(),
         }
     }
 
@@ -301,12 +309,20 @@ impl App {
     }
 
     fn burst(&mut self, at: Pos2) {
-        let cols = [Color32::from_rgb(124, 108, 255), Color32::from_rgb(91, 140, 255), Color32::from_rgb(61, 220, 151), Color32::from_rgb(245, 181, 68), Color32::from_rgb(248, 113, 113), Color32::WHITE];
+        self.burst_n(at, 140, 1.0, ui::pal());
+    }
+
+    /// Confetti in the given accent's colours. `power` scales the launch speed.
+    fn burst_n(&mut self, at: Pos2, n: usize, power: f32, pl: ui::Palette) {
+        if !ui::motion() {
+            return;
+        }
+        let cols = [pl.grad_a, pl.grad_b, pl.tint, pl.soft, ui::SAND, ui::PINK, GREEN, Color32::WHITE];
         let mut rng = rand::rng();
         use rand::Rng;
-        for _ in 0..140 {
+        for _ in 0..n {
             let a: f32 = rng.random_range(-2.7..-0.45);
-            let sp: f32 = rng.random_range(260.0..720.0);
+            let sp: f32 = rng.random_range(260.0..720.0) * power;
             self.confetti.push(Particle {
                 p: at,
                 v: vec2(a.cos() * sp, a.sin() * sp),
@@ -548,7 +564,8 @@ impl App {
     fn titlebar(&mut self, ctx: &Context) {
         egui::TopBottomPanel::top("titlebar").exact_height(36.0).frame(Frame::NONE).show(ctx, |ui| {
             let rect = ui.max_rect();
-            let drag = ui.interact(rect, Id::new("titlebar-drag"), Sense::click_and_drag());
+            // click + drag but not focusable, so Tab skips the empty title bar
+            let drag = ui.interact(rect, Id::new("titlebar-drag"), Sense::CLICK | Sense::DRAG);
             if drag.drag_started_by(egui::PointerButton::Primary) {
                 ctx.send_viewport_cmd(ViewportCommand::StartDrag);
             }
@@ -557,17 +574,54 @@ impl App {
                 ctx.send_viewport_cmd(ViewportCommand::Maximized(!max));
             }
             let p = ui.painter();
+            // a faint accent hairline along the top edge
+            let top = Rect::from_min_size(rect.left_top(), vec2(rect.width(), 1.0));
+            p.add(ui::grad_rrect(top, 0.0, |tx, _| {
+                let k = 1.0 - (tx - 0.5).abs() * 2.0;
+                ui::with_a(ui::grad_a().lerp_to_gamma(ui::grad_b(), tx), (110.0 * k) as u8)
+            }));
             ui::logo(p, Rect::from_center_size(pos2(rect.left() + 22.0, rect.center().y), Vec2::splat(16.0)));
             p.text(pos2(rect.left() + 38.0, rect.center().y), Align2::LEFT_CENTER, "Roicon", ui::reg(12.0), MUTED);
             let w = 46.0;
+            // quick appearance popup
+            let pr = Rect::from_center_size(pos2(rect.right() - w * 3.0 - 22.0, rect.center().y), vec2(30.0, 26.0));
+            let presp = ui.interact(pr, Id::new("appearance-btn"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text("Appearance");
+            let phv = ui::hover_amt(ctx, presp.id, presp.hovered());
+            if phv > 0.01 {
+                ui.painter().rect_filled(pr, 8, Color32::from_white_alpha((14.0 * phv) as u8));
+            }
+            ui::draw_icon(ui.painter(), Icon::Palette, Rect::from_center_size(pr.center(), Vec2::splat(15.0)), MUTED.lerp_to_gamma(ui::accent_txt(), phv));
+            ui::focus_ring(ui, &presp, pr, 8.0);
+            let settings = self.store.lock().settings.clone();
+            egui::Popup::menu(&presp).align(egui::RectAlign::BOTTOM_END).gap(6.0).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+                ui.set_min_width(290.0);
+                ui.spacing_mut().item_spacing.y = 6.0;
+                ui.label(RichText::new("Appearance").font(ui::bold(14.0)));
+                ui.label(RichText::new("Accent").font(ui::semi(11.5)).color(DIM));
+                if let Some((i, at)) = ui::accent_picker(ui, settings.accent) {
+                    self.store.update(|d| d.settings.accent = i);
+                    self.burst_n(at, 36, 0.45, ui::ACCENTS[i].1);
+                }
+                ui.add_space(2.0);
+                ui.label(RichText::new("Background").font(ui::semi(11.5)).color(DIM));
+                if let Some(v) = ui::segmented(ui, Id::new("pop-fx"), &["Vivid", "Subtle", "Off"], settings.effects as usize) {
+                    self.store.update(|d| d.settings.effects = v as u8);
+                }
+                ui.add_space(2.0);
+                if ui::link(ui, "More in Settings…").clicked() {
+                    self.modal = Some(self.account_modal());
+                    ui.close();
+                }
+            });
             let ready = crate::install::UPDATE_READY.lock().unwrap().clone();
             if let Some(v) = ready {
                 let label = format!("Update to v{v} ready  ·  Restart");
                 let gal = ui.painter().layout_no_wrap(label.clone(), ui::semi(11.5), Color32::WHITE);
-                let r = Rect::from_center_size(pos2(rect.right() - w * 3.0 - 14.0 - (gal.size().x + 24.0) / 2.0, rect.center().y), vec2(gal.size().x + 24.0, 24.0));
+                let r = Rect::from_center_size(pos2(rect.right() - w * 3.0 - 46.0 - (gal.size().x + 24.0) / 2.0, rect.center().y), vec2(gal.size().x + 24.0, 24.0));
                 let resp = ui.interact(r, Id::new("update-restart"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text("Restart Roicon to finish updating");
                 let p = ui.painter();
-                p.rect_filled(r, 12, if resp.hovered() { Color32::from_rgb(124, 108, 255) } else { ACCENT });
+                let uhv = ui::hover_amt(ctx, resp.id, resp.hovered());
+                p.add(ui::brand_rrect(r, 12.0, ui::grad_a().lerp_to_gamma(Color32::WHITE, 0.12 * uhv), ui::grad_b().lerp_to_gamma(Color32::WHITE, 0.12 * uhv)));
                 p.text(r.center(), Align2::CENTER_CENTER, label, ui::semi(11.5), Color32::WHITE);
                 if resp.clicked() {
                     crate::install::restart(false);
@@ -577,12 +631,13 @@ impl App {
             for (i, kind) in ["min", "max", "close"].iter().enumerate() {
                 let r = Rect::from_min_size(pos2(rect.right() - w * (3 - i) as f32, rect.top()), vec2(w, 36.0));
                 let resp = ui.interact(r, Id::new(("winbtn", i)), Sense::click());
-                let hov = resp.hovered();
+                let hov = ui::hover_amt(ctx, resp.id, resp.hovered());
                 let p = ui.painter();
-                if hov {
-                    p.rect_filled(r, 0, if *kind == "close" { Color32::from_rgb(229, 72, 77) } else { Color32::from_white_alpha(14) });
+                if hov > 0.01 {
+                    p.rect_filled(r, 0, if *kind == "close" { Color32::from_rgba_unmultiplied(229, 72, 77, (255.0 * hov) as u8) } else { Color32::from_white_alpha((14.0 * hov) as u8) });
                 }
-                let c = if hov { TEXT } else { MUTED };
+                let c = MUTED.lerp_to_gamma(if *kind == "close" { Color32::WHITE } else { TEXT }, hov);
+                ui::focus_ring(ui, &resp, r.shrink(4.0), 6.0);
                 let st = Stroke::new(1.1, c);
                 let cc = r.center();
                 match *kind {
@@ -647,7 +702,7 @@ impl App {
                     match icon.and_then(|n| self.tex(ctx, &n)) {
                         Some(t) => {
                             if active {
-                                ui::glow(&p, tr.center(), 30.0, Color32::from_rgba_unmultiplied(160, 120, 255, 40));
+                                ui::glow(&p, tr.center(), 30.0, ui::tint(40));
                             }
                             egui::Image::new(&t).corner_radius(9).paint_at(ui, tr);
                         }
@@ -674,8 +729,8 @@ impl App {
                     ui.painter().set(
                         pill_idx,
                         egui::Shape::Vec(vec![
-                            ui::brand_rrect(pr, 12.0, Color32::from_rgba_unmultiplied(128, 100, 255, 52), Color32::from_rgba_unmultiplied(184, 82, 240, 12)),
-                            egui::Shape::rect_stroke(pr, 12, Stroke::new(1.0, Color32::from_rgba_unmultiplied(160, 130, 255, 64)), StrokeKind::Inside),
+                            ui::brand_rrect(pr, 12.0, ui::with_a(ui::grad_a(), 52), ui::with_a(ui::grad_b(), 12)),
+                            egui::Shape::rect_stroke(pr, 12, Stroke::new(1.0, ui::tint(64)), StrokeKind::Inside),
                             ui::grad_rrect(Rect::from_min_size(pos2(pr.left() + 1.5, pr.top() + 13.0), vec2(3.0, pr.height() - 26.0)), 1.5, |_, ty| ui::SAND.lerp_to_gamma(ui::PINK, ty)),
                         ]),
                     );
@@ -710,7 +765,7 @@ impl App {
                             egui::Image::new(t).corner_radius(r as u8).paint_at(ui, Rect::from_center_size(c, Vec2::splat(r * 2.0)));
                         }
                         None => {
-                            p.circle_filled(c, r, ACCENT);
+                            p.circle_filled(c, r, ui::accent());
                             p.text(c, Align2::CENTER_CENTER, name.chars().next().unwrap_or('?').to_uppercase().to_string(), ui::bold(r * 0.85), Color32::WHITE);
                         }
                     }
@@ -718,7 +773,7 @@ impl App {
                 draw_avatar(ui, c, 16.0, &avatar, &name);
                 let p = ui.painter();
                 p.text(pos2(rect.left() + 47.0, rect.center().y - 8.0), Align2::LEFT_CENTER, &name, ui::semi(12.8), TEXT);
-                p.text(pos2(rect.left() + 47.0, rect.center().y + 9.0), Align2::LEFT_CENTER, &handle, ui::reg(11.5), if has_key { DIM } else { ACCENT_TXT });
+                p.text(pos2(rect.left() + 47.0, rect.center().y + 9.0), Align2::LEFT_CENTER, &handle, ui::reg(11.5), if has_key { DIM } else { ui::accent_txt() });
                 ui::draw_icon(p, Icon::Dots, Rect::from_center_size(pos2(rect.right() - 16.0, rect.center().y), vec2(14.0, 14.0)), DIM);
                 let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
                 if oauth_on {
@@ -851,7 +906,8 @@ impl App {
                                     ui.painter().rect_filled(r, 8, Color32::from_white_alpha((8.0 * hv) as u8));
                                 }
                                 tabs.push((r, name, hv));
-                                if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                                let key = match t { Tab::Update => "Ctrl+1", Tab::Timers => "Ctrl+2", Tab::Settings => "Ctrl+3" };
+                                if resp.on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(key).clicked() {
                                     self.tab = t;
                                 }
                             }
@@ -872,9 +928,9 @@ impl App {
                                 ui.painter().set(
                                     pill_idx,
                                     egui::Shape::Vec(vec![
-                                        ui::brand_rrect(pr, 8.0, Color32::from_rgb(46, 38, 78), Color32::from_rgb(58, 36, 70)),
+                                        ui::brand_rrect(pr, 8.0, ui::with_a(ui::grad_a(), 70), ui::with_a(ui::grad_b(), 50)),
                                         ui::grad_rrect(pr, 8.0, |_, ty| Color32::from_white_alpha(if ty < 0.5 { (10.0 * (1.0 - ty * 2.0)) as u8 } else { 0 })),
-                                        egui::Shape::rect_stroke(pr, 8, Stroke::new(1.0, Color32::from_rgba_unmultiplied(170, 140, 255, 70)), StrokeKind::Inside),
+                                        egui::Shape::rect_stroke(pr, 8, Stroke::new(1.0, ui::tint(70)), StrokeKind::Inside),
                                     ]),
                                 );
                             }
@@ -899,10 +955,10 @@ impl App {
     }
 
     fn no_key_banner(&mut self, ui: &mut Ui) {
-        Frame::new().fill(Color32::from_rgba_unmultiplied(109, 93, 252, 34)).stroke(Stroke::new(1.0, Color32::from_rgba_unmultiplied(109, 93, 252, 90))).corner_radius(12).inner_margin(Margin::symmetric(16, 12)).show(ui, |ui| {
+        Frame::new().fill(ui::accent_a(34)).stroke(Stroke::new(1.0, ui::accent_a(90))).corner_radius(12).inner_margin(Margin::symmetric(16, 12)).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui::draw_icon(ui.painter(), Icon::Key, Rect::from_center_size(ui.cursor().min + vec2(9.0, 18.0), Vec2::splat(16.0)), ACCENT_TXT);
+                ui::draw_icon(ui.painter(), Icon::Key, Rect::from_center_size(ui.cursor().min + vec2(9.0, 18.0), Vec2::splat(16.0)), ui::accent_txt());
                 ui.add_space(26.0);
                 ui.vertical(|ui| {
                     ui.label(RichText::new("Connect your Roblox account").font(ui::semi(13.5)));
@@ -1126,7 +1182,7 @@ impl App {
         self.drop_rects.push((which, rect));
         if hovering {
             let over = ctx.input(|i| i.pointer.latest_pos()).map(|p| rect.contains(p)).unwrap_or(false);
-            ui.painter().rect(rect, 14, Color32::from_rgba_unmultiplied(109, 93, 252, if over { 40 } else { 14 }), Stroke::new(if over { 2.0 } else { 1.0 }, ACCENT), StrokeKind::Inside);
+            ui.painter().rect(rect, 14, ui::accent_a(if over { 40 } else { 14 }), Stroke::new(if over { 2.0 } else { 1.0 }, ui::accent()), StrokeKind::Inside);
         }
     }
 
@@ -1140,11 +1196,11 @@ impl App {
                 // hero
                 let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 124.0), Sense::hover());
                 let p = ui.painter().clone();
-                let time = ctx.input(|i| i.time) as f32;
+                let time = if ui::motion() { ctx.input(|i| i.time) as f32 } else { 0.0 };
                 let (bg1, bg2, k_col, border, g1, g2) = match u.status {
                     Status::Done => (Color32::from_rgb(18, 64, 48), Color32::from_rgb(16, 28, 28), GREEN, Color32::from_rgba_unmultiplied(61, 220, 151, 70), Color32::from_rgb(80, 230, 170), Color32::from_rgb(90, 200, 255)),
                     Status::Cancelled => (Color32::from_rgb(40, 30, 36), Color32::from_rgb(22, 20, 26), MUTED, LINE2, Color32::from_rgb(90, 80, 100), Color32::from_rgb(70, 60, 80)),
-                    _ => (Color32::from_rgb(62, 36, 146), Color32::from_rgb(24, 16, 58), Color32::from_rgb(196, 178, 255), Color32::from_rgba_unmultiplied(160, 128, 255, 90), Color32::from_rgb(150, 120, 255), ui::PINK),
+                    _ => (ui::pal().deep, ui::pal().deep2, ui::pal().soft, ui::tint(90), ui::pal().tint, ui::PINK),
                 };
                 let lively = if u.status.active() { 1.0 } else { 0.45 };
                 // background: gradient plus two slowly drifting lights, all inside the rounded card
@@ -1180,7 +1236,7 @@ impl App {
                 } else {
                     p.text(pos2(x - 1.0, rect.top() + 56.0), Align2::LEFT_CENTER, &big, ui::bold(32.0), TEXT);
                 }
-                p.text(pos2(x, rect.top() + 87.0), Align2::LEFT_CENTER, &meta, ui::reg(12.8), Color32::from_rgb(178, 172, 214));
+                p.text(pos2(x, rect.top() + 87.0), Align2::LEFT_CENTER, &meta, ui::reg(12.8), ui::pal().soft.lerp_to_gamma(MUTED, 0.45));
                 // progress toward the update
                 let frac = match u.status {
                     Status::Done => 1.0,
@@ -1212,7 +1268,7 @@ impl App {
                         let badge = if u.status == Status::Done { "Live".to_string() } else { u.live_step().map(|s| s.label.clone()).unwrap_or_else(|| "Now".into()) };
                         let g = p.layout_no_wrap(badge.clone(), ui::bold(10.5), Color32::WHITE);
                         let br = Rect::from_min_size(pos2(ir.right() - g.size().x - 12.0, ir.top() - 8.0), vec2(g.size().x + 16.0, 20.0));
-                        let (ba, bb) = if u.status == Status::Done { (GREEN, Color32::from_rgb(79, 214, 232)) } else { (ui::GRAD_A, ui::GRAD_B) };
+                        let (ba, bb) = if u.status == Status::Done { (GREEN, Color32::from_rgb(79, 214, 232)) } else { (ui::grad_a(), ui::grad_b()) };
                         p.add(ui::brand_rrect(br.expand(2.0).translate(vec2(0.0, 2.0)), 12.0, ba.gamma_multiply(0.35), bb.gamma_multiply(0.35)));
                         p.add(ui::brand_rrect(br, 10.0, ba, bb));
                         p.text(br.center(), Align2::CENTER_CENTER, badge, ui::bold(10.5), if u.status == Status::Done { Color32::from_rgb(6, 36, 24) } else { Color32::WHITE });
@@ -1226,7 +1282,7 @@ impl App {
                             crate::open_url(&format!("https://www.roblox.com/games/{}", e2.root_place_id));
                         }
                         let (r, _) = ui.allocate_exact_size(vec2(12.0, 12.0), Sense::hover());
-                        ui::draw_icon(ui.painter(), Icon::External, r, ACCENT_TXT);
+                        ui::draw_icon(ui.painter(), Icon::External, r, ui::accent_txt());
                     });
                 });
                 ui::spot(ui, ui::card().inner_margin(Margin::symmetric(0, 8)), |ui| {
@@ -1390,7 +1446,7 @@ impl App {
                     ui::hover_outline(ui, Id::new(("timer-card", &t.id)), rect, 16);
                     self.drop_rects.push((Drop::Overlay(t.id.clone()), rect));
                     if hovering && ctx.input(|i| i.pointer.latest_pos()).map(|p| rect.contains(p)).unwrap_or(false) {
-                        ui.painter().rect(rect, 14, Color32::from_rgba_unmultiplied(109, 93, 252, 40), Stroke::new(2.0, ACCENT), StrokeKind::Inside);
+                        ui.painter().rect(rect, 14, ui::accent_a(40), Stroke::new(2.0, ui::accent()), StrokeKind::Inside);
                     }
                 }
                 // add timer
@@ -1533,8 +1589,8 @@ impl App {
                         ui.set_width(182.0);
                         ui.vertical(|ui| {
                             let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
-                            ui.painter().rect_filled(r, 7, if *done { Color32::from_rgba_unmultiplied(61, 220, 151, 30) } else { Color32::from_rgba_unmultiplied(109, 93, 252, 40) });
-                            ui.painter().text(r.center(), Align2::CENTER_CENTER, if *done { "✓".to_string() } else { (i + 1).to_string() }, ui::bold(11.5), if *done { GREEN } else { ACCENT_TXT });
+                            ui.painter().rect_filled(r, 7, if *done { Color32::from_rgba_unmultiplied(61, 220, 151, 30) } else { ui::accent_a(40) });
+                            ui.painter().text(r.center(), Align2::CENTER_CENTER, if *done { "✓".to_string() } else { (i + 1).to_string() }, ui::bold(11.5), if *done { GREEN } else { ui::accent_txt() });
                             ui.label(RichText::new(*t).font(ui::semi(13.0)));
                             ui.label(RichText::new(*s).size(12.0).color(DIM));
                         });
@@ -1593,7 +1649,7 @@ impl App {
         let line = if oauth_on { GREEN } else { Color32::from_gray(150) };
         p.line_segment([pos2(lx + 54.0, cy), pos2(rx - 54.0, cy)], Stroke::new(3.5, line));
         draw_lock(&p, pos2(r.center().x, cy), line, oauth_on);
-        p.circle_filled(pos2(lx, cy), 50.0, Color32::from_rgb(26, 23, 52));
+        p.circle_filled(pos2(lx, cy), 50.0, ui::pal().deep2);
         p.circle_stroke(pos2(lx, cy), 50.0, Stroke::new(1.0, LINE2));
         ui::logo(&p, Rect::from_center_size(pos2(lx, cy), Vec2::splat(56.0)));
         p.circle_filled(pos2(rx, cy), 50.0, PANEL3);
@@ -1607,7 +1663,7 @@ impl App {
             }
         }
         p.text(pos2(lx, cy + 70.0), Align2::CENTER_CENTER, "Roicon", ui::semi(15.0), TEXT);
-        p.text(pos2(lx, cy + 90.0), Align2::CENTER_CENTER, "Countdown icons", ui::reg(12.5), ACCENT_TXT);
+        p.text(pos2(lx, cy + 90.0), Align2::CENTER_CENTER, "Countdown icons", ui::reg(12.5), ui::accent_txt());
         let who = acct.as_ref().filter(|_| oauth_on).and_then(|a| a.name.clone()).unwrap_or_else(|| "Your Roblox account".into());
         p.text(pos2(rx, cy + 70.0), Align2::CENTER_CENTER, &who, ui::semi(15.0), TEXT);
         p.text(pos2(rx, cy + 90.0), Align2::CENTER_CENTER, if oauth_on { "Connected" } else { "Not connected" }, ui::reg(12.5), if oauth_on { GREEN } else { DIM });
@@ -1748,10 +1804,36 @@ impl App {
             });
         });
 
+        // ---- appearance ----
+        ui.add_space(10.0);
+        ui::section_label(ui, "Appearance");
+        let s = data.settings.clone();
+        if let Some((i, at)) = setting_row(ui, "Accent colour", "Tints buttons, highlights and the countdown card.", 254.0, |ui| ui::accent_picker(ui, s.accent)) {
+            self.store.update(|d| d.settings.accent = i);
+            self.burst_n(at, 36, 0.45, ui::ACCENTS[i].1);
+        }
+        let corners = ["Round", "Small", "Square"];
+        if let Some(v) = setting_row(ui, "Window corners", "Rounded corners need Windows 11.", ui::segmented_width(ui, &corners), |ui| ui::segmented(ui, Id::new("set-corners"), &corners, s.corners as usize)) {
+            self.store.update(|d| d.settings.corners = v as u8);
+        }
+        let fx = ["Vivid", "Subtle", "Off"];
+        if let Some(v) = setting_row(ui, "Background", "Ambient lights, grid and the cursor glow. Off is flat and clean.", ui::segmented_width(ui, &fx), |ui| ui::segmented(ui, Id::new("set-fx"), &fx, s.effects as usize)) {
+            self.store.update(|d| d.settings.effects = v as u8);
+        }
+        let sizes = ["90%", "100%", "110%", "125%"];
+        let cur = UI_SCALES.iter().position(|x| (x - s.ui_scale).abs() < 0.01).unwrap_or(1);
+        if let Some(v) = setting_row(ui, "Interface size", "Ctrl + and Ctrl − also change it. Ctrl 0 resets.", ui::segmented_width(ui, &sizes), |ui| ui::segmented(ui, Id::new("set-size"), &sizes, cur)) {
+            self.store.update(|d| d.settings.ui_scale = UI_SCALES[v]);
+        }
+        let sys = self.sys_reduce_motion;
+        let sub = if sys { "Windows' animation effects are off, so Roicon already keeps still." } else { "Stops pulses, shimmer, drifting lights and confetti." };
+        if setting_row(ui, "Reduce motion", sub, 36.0, |ui| ui::switch(ui, s.reduce_motion || sys)).clicked() && !sys {
+            self.store.update(|d| d.settings.reduce_motion = !d.settings.reduce_motion);
+        }
+
         // ---- app settings ----
         ui.add_space(10.0);
         ui::section_label(ui, "App");
-        let s = data.settings.clone();
         let mut toggle = |ui: &mut Ui, title: &str, sub: &str, on: bool, f: fn(&mut Settings)| {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
@@ -1760,6 +1842,7 @@ impl App {
                     ui.label(RichText::new(sub).size(12.0).color(DIM));
                 });
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.add_space(12.0);
                     if ui::switch(ui, on).clicked() {
                         self.store.update(|d| f(&mut d.settings));
                         crate::set_launch_at_login(self.store.lock().settings.launch_at_login);
@@ -1783,6 +1866,70 @@ impl App {
         close
     }
 
+    // ---------------- appearance / keyboard ----------------
+
+    /// Push accent, motion, effects, corners and zoom from the settings into egui and Windows.
+    fn apply_appearance(&mut self, ctx: &Context, s: &Settings) {
+        ui::set_reduce_motion(s.reduce_motion || self.sys_reduce_motion);
+        ui::set_effects(s.effects);
+        if self.applied_accent != Some(s.accent) {
+            ui::set_accent(s.accent);
+            ui::apply_visuals(ctx);
+            self.applied_accent = Some(s.accent);
+        }
+        if self.applied_corners != Some(s.corners) {
+            crate::set_window_corners(s.corners);
+            self.applied_corners = Some(s.corners);
+        }
+        let scale = s.ui_scale.clamp(0.9, 1.25);
+        if (ctx.zoom_factor() - scale).abs() > 0.001 {
+            ctx.set_zoom_factor(scale);
+        }
+    }
+
+    /// Ctrl+1/2/3 tabs, Ctrl+Up/Down experiences, Ctrl+N add, Ctrl+, settings, Ctrl +/-/0 size.
+    fn shortcuts(&mut self, ctx: &Context, data: &Data) {
+        if self.modal.is_some() {
+            return;
+        }
+        use egui::{Key, Modifiers as M};
+        let k = |key: Key| ctx.input_mut(|i| i.consume_key(M::COMMAND, key));
+        if k(Key::N) {
+            self.modal = Some(Modal::AddExp { input: String::new(), busy: false, err: String::new() });
+        }
+        if k(Key::Comma) {
+            self.modal = Some(self.account_modal());
+        }
+        if !data.experiences.is_empty() {
+            for (key, tab) in [(Key::Num1, Tab::Update), (Key::Num2, Tab::Timers), (Key::Num3, Tab::Settings)] {
+                if k(key) {
+                    self.tab = tab;
+                }
+            }
+            let step = if k(Key::ArrowDown) { 1 } else if k(Key::ArrowUp) { -1 } else { 0 };
+            if step != 0 {
+                let n = data.experiences.len() as i64;
+                let cur = data.selected.as_ref().and_then(|id| data.experiences.iter().position(|e| &e.id == id)).unwrap_or(0) as i64;
+                let id = data.experiences[(cur + step).rem_euclid(n) as usize].id.clone();
+                self.store.update(|d| d.selected = Some(id));
+            }
+        }
+        let cur = UI_SCALES.iter().position(|x| (x - data.settings.ui_scale).abs() < 0.01).unwrap_or(1);
+        let next = if k(Key::Plus) || k(Key::Equals) {
+            Some((cur + 1).min(UI_SCALES.len() - 1))
+        } else if k(Key::Minus) {
+            Some(cur.saturating_sub(1))
+        } else if k(Key::Num0) {
+            Some(1)
+        } else {
+            None
+        };
+        if let Some(i) = next.filter(|i| *i != cur) {
+            self.store.update(|d| d.settings.ui_scale = UI_SCALES[i]);
+            self.toast(ctx, format!("Interface size {}%", (UI_SCALES[i] * 100.0).round()), false);
+        }
+    }
+
     // ---------------- modals ----------------
 
     fn modals(&mut self, ctx: &Context, data: &Data) {
@@ -1801,7 +1948,7 @@ impl App {
         let mut close = false;
         let frame = Frame::new()
             .fill(Color32::from_rgb(21, 21, 31))
-            .stroke(Stroke::new(1.0, Color32::from_rgba_unmultiplied(160, 130, 255, (40.0 + 30.0 * mt) as u8)))
+            .stroke(Stroke::new(1.0, ui::tint((40.0 + 30.0 * mt) as u8)))
             .corner_radius(18)
             .inner_margin(Margin::same(22))
             .shadow(egui::Shadow { offset: [0, 18], blur: 50, spread: 0, color: Color32::from_black_alpha((150.0 * mt) as u8) });
@@ -1896,7 +2043,7 @@ impl App {
                                                 let on = *pm == is_pm;
                                                 let (r, resp) = ui.allocate_exact_size(vec2(44.0, 28.0), Sense::click());
                                                 if on {
-                                                    ui.painter().rect_filled(r, 7, ACCENT);
+                                                    ui.painter().rect_filled(r, 7, ui::accent());
                                                 } else if resp.hovered() {
                                                     ui.painter().rect_filled(r, 7, Color32::from_white_alpha(10));
                                                 }
@@ -2038,8 +2185,8 @@ impl App {
                             for (i, s) in ["Connect your phone to the same Wi-Fi as this PC.", "Open the camera and point it at this code.", "Your phone shows the countdown live, with each icon as it goes up."].iter().enumerate() {
                                 ui.horizontal_top(|ui| {
                                     let (r, _) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::hover());
-                                    ui.painter().rect_filled(r, 6, Color32::from_rgba_unmultiplied(109, 93, 252, 40));
-                                    ui.painter().text(r.center(), Align2::CENTER_CENTER, (i + 1).to_string(), ui::bold(11.0), ACCENT_TXT);
+                                    ui.painter().rect_filled(r, 6, ui::accent_a(40));
+                                    ui.painter().text(r.center(), Align2::CENTER_CENTER, (i + 1).to_string(), ui::bold(11.0), ui::accent_txt());
                                     ui.add(egui::Label::new(RichText::new(*s).size(12.8).color(MUTED)).wrap());
                                 });
                                 ui.add_space(4.0);
@@ -2174,7 +2321,7 @@ impl App {
                     .interactable(false)
                     .show(ctx, |ui| {
                         ui.multiply_opacity(inn * out);
-                        Frame::new().fill(Color32::from_rgb(26, 25, 38)).stroke(Stroke::new(1.0, Color32::from_rgba_unmultiplied(160, 130, 255, 50))).corner_radius(12).inner_margin(Margin::symmetric(14, 11)).shadow(egui::Shadow { offset: [0, 10], blur: 30, spread: 0, color: Color32::from_black_alpha(120) }).show(ui, |ui| {
+                        Frame::new().fill(Color32::from_rgb(26, 25, 38)).stroke(Stroke::new(1.0, ui::tint(50))).corner_radius(12).inner_margin(Margin::symmetric(14, 11)).shadow(egui::Shadow { offset: [0, 10], blur: 30, spread: 0, color: Color32::from_black_alpha(120) }).show(ui, |ui| {
                             ui.set_max_width(380.0);
                             ui.horizontal(|ui| {
                                 let (r, _) = ui.allocate_exact_size(vec2(8.0, 16.0), Sense::hover());
@@ -2210,6 +2357,27 @@ impl App {
             ctx.request_repaint();
         }
     }
+}
+
+/// Interface size steps for the setting and Ctrl +/-.
+const UI_SCALES: [f32; 4] = [0.9, 1.0, 1.1, 1.25];
+
+/// A settings row: title and hint on the left, a control `ctrl_w` wide on the right.
+fn setting_row<R>(ui: &mut Ui, title: &str, sub: &str, ctrl_w: f32, control: impl FnOnce(&mut Ui) -> R) -> R {
+    let r = ui.horizontal(|ui| {
+        let lw = (ui.available_width() - ctrl_w - 16.0).max(140.0);
+        ui.allocate_ui_with_layout(vec2(lw, 0.0), Layout::top_down(Align::Min), |ui| {
+            ui.set_width(lw);
+            ui.spacing_mut().item_spacing.y = 0.0;
+            ui.label(RichText::new(title).font(ui::semi(13.0)));
+            ui.add(egui::Label::new(RichText::new(sub).size(12.0).color(DIM)).wrap());
+        });
+        // keep clear of the modal's scrollbar
+        ui.add_space((ui.available_width() - ctrl_w - 12.0).max(0.0));
+        control(ui)
+    });
+    ui.add_space(6.0);
+    r.inner
 }
 
 /// A full-width menu row with an icon. Returns true when clicked.
@@ -2280,10 +2448,10 @@ fn tile(ui: &mut Ui, tex: Option<&TextureHandle>, label: &str, time: &str, final
         p.rect_filled(rect.expand(1.0).translate(vec2(0.0, 6.0 * hv)), 14, Color32::from_black_alpha((60.0 * hv) as u8));
     }
     if final_ {
-        let pulse = 0.5 + 0.5 * (ui.input(|i| i.time) as f32 * 1.6).sin();
-        p.rect_filled(rect.expand(3.0 + 2.0 * pulse), 16, Color32::from_rgba_unmultiplied(160, 110, 255, (16.0 + 14.0 * pulse) as u8));
+        let pulse = if ui::motion() { 0.5 + 0.5 * (ui.input(|i| i.time) as f32 * 1.6).sin() } else { 0.5 };
+        p.rect_filled(rect.expand(3.0 + 2.0 * pulse), 16, ui::tint((16.0 + 14.0 * pulse) as u8));
     }
-    let border = if final_ { Color32::from_rgba_unmultiplied(170, 130, 255, 160) } else { Color32::from_white_alpha(14).lerp_to_gamma(Color32::from_rgba_unmultiplied(150, 120, 255, 120), hv) };
+    let border = if final_ { ui::tint(160) } else { Color32::from_white_alpha(14).lerp_to_gamma(ui::tint(120), hv) };
     p.rect(rect, 13, Color32::from_rgba_unmultiplied(20, 20, 30, 230).gamma_multiply(op.max(0.6)), Stroke::new(1.0, border), StrokeKind::Inside);
     let ir = Rect::from_min_size(rect.min + vec2(8.0, 8.0), Vec2::splat(100.0));
     match tex {
@@ -2297,7 +2465,7 @@ fn tile(ui: &mut Ui, tex: Option<&TextureHandle>, label: &str, time: &str, final
             ui::draw_icon(&p, Icon::Image, Rect::from_center_size(ir.center(), Vec2::splat(22.0)), DIM);
         }
     }
-    let lc = if final_ { ACCENT_TXT } else { TEXT };
+    let lc = if final_ { ui::accent_txt() } else { TEXT };
     p.text(pos2(rect.center().x, ir.bottom() + 15.0), Align2::CENTER_CENTER, label, ui::bold(12.8), lc.gamma_multiply(op));
     p.text(pos2(rect.center().x, ir.bottom() + 31.0), Align2::CENTER_CENTER, time, ui::reg(10.8), DIM.gamma_multiply(op));
 }
@@ -2423,18 +2591,33 @@ impl eframe::App for App {
         let data = self.store.lock().clone();
         USE_24H.store(data.settings.use_24h, std::sync::atomic::Ordering::Relaxed);
         let now = now_ms();
+        self.apply_appearance(ctx, &data.settings);
         self.handle_close(ctx, &data);
+        self.shortcuts(ctx, &data);
 
         // background
         let bgp = ctx.layer_painter(egui::LayerId::background());
         let sr = ctx.screen_rect();
         bgp.rect_filled(sr, 0, ui::BG);
-        let tt = ctx.input(|i| i.time) as f32;
-        ui::glow(&bgp, sr.left_top() + vec2(-40.0 + 90.0 * (tt * 0.11).sin(), -60.0 + 70.0 * (tt * 0.09).cos()), 780.0, Color32::from_rgba_unmultiplied(120, 90, 255, 54));
-        ui::glow(&bgp, sr.right_bottom() + vec2(60.0 + 80.0 * (tt * 0.08).cos(), 80.0 + 60.0 * (tt * 0.12).sin()), 640.0, Color32::from_rgba_unmultiplied(244, 96, 164, 22));
-        ui::glow(&bgp, pos2(sr.center().x + sr.width() * 0.25 * (tt * 0.05).sin(), sr.bottom() + 60.0), 560.0, Color32::from_rgba_unmultiplied(255, 165, 80, 20));
+        let fx = ui::effects();
+        let k = if fx == 0 { 1.0 } else { 0.5 };
+        let tt = if ui::motion() { ctx.input(|i| i.time) as f32 } else { 0.0 };
+        if fx < 2 {
+            let pl = ui::pal();
+            ui::glow(&bgp, sr.left_top() + vec2(-40.0 + 90.0 * (tt * 0.11).sin(), -60.0 + 70.0 * (tt * 0.09).cos()), 780.0, ui::with_a(pl.grad_a, (54.0 * k) as u8));
+            ui::glow(&bgp, sr.right_bottom() + vec2(60.0 + 80.0 * (tt * 0.08).cos(), 80.0 + 60.0 * (tt * 0.12).sin()), 640.0, ui::with_a(pl.grad_b.lerp_to_gamma(ui::PINK, 0.5), (22.0 * k) as u8));
+            ui::glow(&bgp, pos2(sr.center().x + sr.width() * 0.25 * (tt * 0.05).sin(), sr.bottom() + 60.0), 560.0, Color32::from_rgba_unmultiplied(255, 165, 80, (20.0 * k) as u8));
+        }
+        // soft light that trails the cursor
+        if fx == 0 {
+            if let Some(ptr) = ctx.input(|i| i.pointer.hover_pos()) {
+                let x = ui::smooth(ctx, Id::new("bg-cursor-x"), ptr.x, 5.0);
+                let y = ui::smooth(ctx, Id::new("bg-cursor-y"), ptr.y, 5.0);
+                ui::glow(&bgp, pos2(x, y), 340.0, ui::tint(13));
+            }
+        }
         // faint grid that fades out from the top, like the website
-        {
+        if fx == 0 {
             let step = 56.0;
             let fade_h = sr.height() * 0.6;
             let mut mesh = egui::Mesh::default();
@@ -2478,6 +2661,7 @@ impl eframe::App for App {
         self.resize_edges(ctx);
         // Keep the ambient motion flowing while the window has focus; idle otherwise.
         let focused = ctx.input(|i| i.focused);
-        ctx.request_repaint_after(std::time::Duration::from_millis(if focused { 33 } else { 1000 }));
+        let ambient = ui::motion() && fx < 2;
+        ctx.request_repaint_after(std::time::Duration::from_millis(if focused && ambient { 33 } else { 1000 }));
     }
 }
