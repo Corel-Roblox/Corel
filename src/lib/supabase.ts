@@ -14,21 +14,34 @@ export interface BackendConfig {
 
 const CUSTOM_KEY = 'corel.backend';
 
+/** Reduces any pasted Supabase URL (REST URL, dashboard link, trailing slash) to the project origin. */
+export function normalizeUrl(raw: string): string {
+  const t = raw.trim().replace(/^["']|["']$/g, '');
+  try {
+    const u = new URL(t);
+    const dash = u.pathname.match(/\/project\/([a-z0-9]{20})/);
+    if (u.hostname === 'supabase.com' && dash) return `https://${dash[1]}.supabase.co`;
+    return u.origin;
+  } catch {
+    return t.replace(/\/+$/, '');
+  }
+}
+
 export function backendConfig(): BackendConfig | null {
   try {
     const custom = JSON.parse(localStorage.getItem(CUSTOM_KEY) || 'null');
-    if (custom?.url && custom?.anonKey) return { url: custom.url, anonKey: custom.anonKey, source: 'custom' };
+    if (custom?.url && custom?.anonKey) return { url: normalizeUrl(custom.url), anonKey: custom.anonKey.trim(), source: 'custom' };
   } catch {
     /* ignore */
   }
   const url = import.meta.env.COREL_PUBLIC_SUPABASE_URL as string | undefined;
   const anonKey = import.meta.env.COREL_PUBLIC_SUPABASE_ANON_KEY as string | undefined;
-  if (url && anonKey) return { url, anonKey, source: 'build' };
+  if (url && anonKey) return { url: normalizeUrl(url), anonKey: anonKey.trim(), source: 'build' };
   return null;
 }
 
 export function saveCustomBackend(url: string, anonKey: string) {
-  localStorage.setItem(CUSTOM_KEY, JSON.stringify({ url: url.trim().replace(/\/+$/, ''), anonKey: anonKey.trim() }));
+  localStorage.setItem(CUSTOM_KEY, JSON.stringify({ url: normalizeUrl(url), anonKey: anonKey.trim() }));
 }
 
 export function clearCustomBackend() {
@@ -37,7 +50,7 @@ export function clearCustomBackend() {
 
 /** Checks that a URL + key point at a reachable Supabase project with the Corel schema. */
 export async function testBackend(url: string, anonKey: string): Promise<void> {
-  const clean = url.trim().replace(/\/+$/, '');
+  const clean = normalizeUrl(url);
   if (!/^https?:\/\//.test(clean)) throw new Error('The URL should start with https://');
   let res: Response;
   try {

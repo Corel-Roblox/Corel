@@ -1,5 +1,9 @@
 **Download `Corel.exe`** and run it. It installs itself, adds Desktop and Start menu shortcuts, and opens. Coming from Roicon? Corel imports your experiences, schedules and Roblox sign-in on first start.
 
+### 2.0.1
+- Fixes "Invalid path specified in request URL" when signing up or signing in: Corel now accepts any form of the workspace server URL.
+- Updates now come from github.com/Corel-Roblox/Corel.
+
 ### Roicon is now Corel 2.0
 A complete redesign into a workspace for Roblox development teams.
 

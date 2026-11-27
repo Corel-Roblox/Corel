@@ -1,6 +1,6 @@
 [package]
 name = "corel"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2021"
 description = "Corel: the workspace for Roblox development teams."
 
