@@ -1,0 +1,40 @@
+[package]
+name = "corel"
+version = "2.0.0"
+edition = "2021"
+description = "Corel: the workspace for Roblox development teams."
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+rand = "0.9"
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "ico"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "multipart", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = "0.4"
+tiny-skia = "0.11"
+ab_glyph = "0.2"
+qrcode = { version = "0.14", default-features = false, features = ["image"] }
+tiny_http = "0.12"
+rfd = "0.15"
+notify-rust = "4"
+keyring = { version = "3", features = ["windows-native"] }
+winreg = "0.55"
+windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_Security", "Win32_Security_Cryptography", "Win32_UI_Shell", "Win32_System_Memory"] }
+rand = "0.9"
+base64 = "0.22"
+dirs = "6"
+sha2 = "0.10"
+mslnk = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+strip = true
+codegen-units = 4
+
+[profile.dev.package."*"]
+opt-level = 2

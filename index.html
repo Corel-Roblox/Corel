@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-accent="green">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Corel</title>
+    <style>
+      html, body { margin: 0; background: #0b0d12; }
+      html[data-theme='light'], html[data-theme='light'] body { background: #f7f8fa; }
+      #splash { position: fixed; inset: 0; display: grid; place-items: center; z-index: 9999; background: inherit; transition: opacity 260ms ease; }
+      #splash.out { opacity: 0; pointer-events: none; }
+      #splash .wrap { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+      #splash svg { width: 56px; height: 56px; }
+      #splash .word { font: 600 15px 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; letter-spacing: 0.02em; color: #eceef3; }
+      html[data-theme='light'] #splash .word { color: #0f172a; }
+      #splash .bar { width: 120px; height: 2px; border-radius: 2px; background: rgba(127, 127, 127, 0.18); overflow: hidden; }
+      #splash .bar i { display: block; width: 40%; height: 100%; background: #22c55e; border-radius: 2px; animation: corel-load 1.1s ease-in-out infinite; }
+      @keyframes corel-load { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+      @media (prefers-reduced-motion: reduce) { #splash .bar i { animation: none; width: 100%; } }
+    </style>
+    <script>
+      // Apply saved theme before first paint so there is no flash.
+      try {
+        const p = JSON.parse(localStorage.getItem('corel.prefs') || '{}').state || {};
+        const t = p.theme === 'system' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : p.theme || 'dark';
+        document.documentElement.dataset.theme = t;
+        document.documentElement.dataset.accent = p.accent || 'green';
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="splash" role="status" aria-label="Loading Corel">
+      <div class="wrap">
+        <svg viewBox="230 190 564 644" aria-hidden="true">
+          <path d="M512 214 770 363 512 512 254 363Z" fill="#4ADE80" />
+          <path d="M254 363 512 512 512 810 254 661Z" fill="#22C55E" />
+          <path d="M512 512 770 363 770 661 512 810Z" fill="#15803D" />
+        </svg>
+        <div class="word">Corel</div>
+        <div class="bar"><i></i></div>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

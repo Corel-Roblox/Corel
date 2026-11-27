@@ -1,7 +1,12 @@
 /target
 /dist
+/node_modules
 /.cargo
 /demo-raw.mp4
 /record-demo.ps1
 /.claude
 /preview
+/src-tauri/target
+/src-tauri/gen
+.env
+.env.local

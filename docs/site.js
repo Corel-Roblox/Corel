@@ -1,4 +1,4 @@
-// Roicon site: scroll reveals, nav state, the countdown showcase and card spotlights.
+// Corel site: scroll reveals, nav state, the countdown showcase and card spotlights.
 (() => {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -65,7 +65,7 @@
   }
 
   // Show the latest version number in the hero pill.
-  fetch('https://api.github.com/repos/jakedev2/Roicon/releases/latest')
+  fetch('https://api.github.com/repos/jakedev2/Corel/releases/latest')
     .then((r) => (r.ok ? r.json() : null))
     .then((j) => {
       const v = j && j.tag_name;

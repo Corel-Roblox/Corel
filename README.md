@@ -1,65 +1,142 @@
-# Roicon
+# Corel
 
-Countdown icons for Roblox. On autopilot. A native Windows app written in Rust (egui).
+**The workspace for Roblox development teams.** Projects, publishing, analytics, bug
+tracking, a shared Luau script library and real-time collaboration in one Windows desktop app.
 
-You pick your current icon, your new icon and an update time. Roicon builds the
-countdown icons (12 Hours, 6 Hours, 3 Hours, 1 Hour), uploads them to Roblox early so they
-pass moderation in time, then switches the icon on every place you chose at each step.
-When the update time hits, the new icon goes live.
+Corel is the successor to Roicon. The countdown-icon publishing engine is still here
+(now the **Publish** section), and Corel imports a Roicon install's experiences, schedules and sign-in.
 
-## Run it
+| Section | What it does |
+|---|---|
+| **Overview** | Workspace numbers, upcoming updates, live activity, recent bugs and scripts, game performance, quick actions. Widgets can be hidden and dragged into a new order. |
+| **Projects** | One project per Roblox experience (universe ID, place ID, thumbnail, description, visibility). Each has its own workspace: overview, task board, bugs, scripts, publishing, analytics, members with project roles, activity and settings. |
+| **Publish** | Set the current and new icon, pick a time, and Corel uploads countdown icons (12h / 6h / 3h / 1h, or your own steps and overlay art) early so they pass moderation, then switches the icon on every chosen place at each step. Update announcements with a preview, live step tracking, cancel-and-restore, history shared with the team, and a phone relay. |
+| **Analytics** | Visits, players online, favorites and rating from Roblox's public numbers, captured every 15 minutes while Corel is open, with date ranges and side-by-side comparison. Revenue, DAU, session time and retention come from Creator Hub CSV exports you import (Roblox has no public API for them). Missing data is shown as "Not available", never as zero; sample charts are labelled **Demo data**. |
+| **Bugs** | Reports with severity, status, assignee, steps, environment and attachments; dashboard (unresolved, critical, recently fixed, per developer); search, filters and sorting; live comments with typing indicators; full history. |
+| **Scripts** | Luau editor (syntax highlighting, auto-indent, formatter, completions), folders, categories, tags, favorites, sharing with the team, selected projects or only you, presence, conflict-safe saving and version history with diff and restore. |
+| **Team** | Invite by email or link, accept/decline, roles (Owner, Admin, Developer, Viewer), per-member permission overrides, shared projects, online status and last-active times, activity feed filtered by project and event type. |
 
-`dist/Roicon.exe` (or the latest GitHub release). Running it installs Roicon to `%LOCALAPPDATA%\Programs\Roicon`, adds Desktop and Start menu shortcuts, and keeps it up to date from GitHub releases (`--portable` skips the install). It keeps running in the tray so updates happen on time.
+Global search (`Ctrl K`), a notification center, toasts, keyboard shortcuts (`?` lists them)
+and settings for theme, accent colour, profile, security (password, email, two-factor,
+sessions), notifications, integrations, desktop behaviour and data export.
 
-## Connect your Roblox account
+Collaboration in Corel covers the workspace above. It is not Roblox Studio's Team Create:
+Corel does not edit places in Studio.
 
-Open Settings (bottom left) and press **Connect with Roblox**. Roblox's sign-in page opens in
-your browser; pick your account (and any groups that own your games) and press **Select**.
-Your Roblox profile then shows in the bottom-left corner.
+## How it's built
 
-The OAuth client ID and secret are built into the app, so users never see or edit them.
-The secret is not in this repository: release builds get it from the `ROICON_CLIENT_SECRET`
-GitHub Actions secret (see `.github/workflows/release.yml`).
+- **Desktop shell:** Tauri 2 (Rust, `src-tauri/`). The Roicon engine is kept as-is:
+  `scheduler.rs` (uploads, moderation polling, timed icon switches), `roblox.rs`
+  (Open Cloud + public APIs), `oauth.rs` (Sign in with Roblox, PKCE), `images.rs`
+  (countdown compositing), `relay.rs` (phone relay), `install.rs` (self-installer and
+  auto-updater), `store.rs` (local state). `commands.rs` exposes them to the UI;
+  `secure.rs` encrypts the workspace session with Windows DPAPI.
+- **UI:** React + TypeScript + Tailwind (`src/`), Lucide icons, Radix primitives,
+  Recharts, CodeMirror 6 with a Luau mode. Design tokens live in `src/styles.css`;
+  the design system is in `design-system/corel/MASTER.md`.
+- **Workspace server:** Supabase (Postgres, Auth, Realtime, Storage). Schema, row level
+  security, triggers and RPCs are in `supabase/migrations/`.
 
-OAuth app settings (Creator Hub → OAuth 2.0 Apps):
+Why the UI moved from egui to a web view: the new product needs rich text editing, a code
+editor, charts, accessible menus/dialogs and the Supabase Realtime client, which are mature
+on the web stack. All Rust logic was kept and is still what talks to Roblox.
+
+### Security model
+
+- Roblox tokens, the API key and the OAuth client secret never reach the web view. They
+  stay in Rust and Windows Credential Manager.
+- The workspace session is encrypted with DPAPI (tied to the Windows user).
+- The Supabase URL and **anon** key are public by design. Every table has row level
+  security; activity and notifications are written only by database triggers; script
+  content can only change through `save_script()`, which rejects stale saves; realtime
+  presence channels are private and limited to team members. Never ship the
+  `service_role` key.
+
+### Real-time collaboration
+
+Supabase Realtime `postgres_changes` streams every insert/update/delete the user is
+allowed to see (projects, bugs, tasks, comments, scripts, publishing, activity,
+notifications, members). Presence on private channels drives online indicators, "who's
+viewing this project", script editors and comment typing indicators. After a dropped
+connection the workspace is re-fetched so nothing is missed. No polling is used for
+collaboration.
+
+## Setup
+
+### 1. Workspace server (once per organisation)
+
+1. Create a project at [supabase.com](https://supabase.com/dashboard) (the free tier works).
+2. Run the migration: open **SQL Editor**, paste `supabase/migrations/20261126000000_corel_init.sql`
+   and run it, or use the CLI: `supabase link` then `supabase db push`.
+3. **Authentication → Providers → Email:** keep it enabled. Turn "Confirm email" on or off as you prefer.
+4. **Realtime → Settings:** leave "Allow public access" off so the private team channels are used.
+5. **Project Settings → API:** copy the Project URL and the `anon` public key.
+
+Then either bake them into builds (recommended for releases):
+
+```powershell
+$env:COREL_PUBLIC_SUPABASE_URL = "https://<ref>.supabase.co"
+```
+
+```powershell
+$env:COREL_PUBLIC_SUPABASE_ANON_KEY = "<anon key>"
+```
+
+or leave them out and each user enters them on first launch (Settings → Integrations can
+change them later). See `.env.example`.
+
+### 2. Roblox OAuth app (optional, for "Connect with Roblox")
+
+Creator Hub → OAuth 2.0 Apps:
 
 - Redirect URL: `http://localhost:52817/callback`
 - Scopes: `openid`, `profile`, `asset:read`, `asset:write`
-- Entry link: https://jakedev2.github.io/Roicon/
-- Privacy Policy: https://jakedev2.github.io/Roicon/privacy.html
-- Terms of Service: https://jakedev2.github.io/Roicon/terms.html
 
-Private OAuth apps work for up to 10 Roblox accounts. For group games, select the group on
-Roblox's page.
+Build with the secret (never commit it):
 
-You can also use an Open Cloud API key instead (Settings → Advanced): Assets API with
-Read and Write.
-
-## How it talks to Roblox
-
-- Upload images: `POST https://apis.roblox.com/assets/v1/assets` (Open Use, so they can be place icons)
-- Moderation state: `GET /assets/v1/assets/{id}?readMask=moderationResult`
-- Set a place's icon: `PATCH /assets/v1/assets/{placeId}?updateMask=icon`
-- Game info, places and the current icon come from Roblox's public web APIs.
-
-## Phone relay
-
-**Send to phone** shows a QR code. Scan it on the same Wi-Fi to see the countdown live on your
-phone. This PC does the icon switching, so leave it on (it can sit in the tray).
-
-## Build
-
-```
-$env:ROICON_CLIENT_SECRET = "<client secret>"   # optional; without it, Sign in with Roblox is disabled
-cargo build --release
+```powershell
+$env:COREL_CLIENT_SECRET = "<client secret>"
 ```
 
-Releases: push a tag like `v1.1.0` and the Release workflow builds `Roicon.exe` with the
-secret from GitHub Secrets and attaches it to the GitHub release.
+Without it, users can still connect with an Open Cloud API key (Assets API, read + write).
 
-Data lives in `%APPDATA%\Roicon`. Secrets (sign-in token, client secret, API key)
-are stored in Windows Credential Manager.
+### 3. Build
 
-## Website
+Requires Node 20+, Rust stable and the WebView2 runtime (included with Windows 11).
 
-The `docs/` folder is the GitHub Pages site (home page, privacy policy, terms).
+```powershell
+npm install
+```
+
+```powershell
+npm run app:build
+```
+
+The app is `src-tauri/target/release/corel.exe`. Running it from anywhere installs it to
+`%LOCALAPPDATA%\Programs\Corel`, adds shortcuts, registers `corel://` invite links and
+keeps itself updated from GitHub releases (`--portable` skips installing).
+
+Development: `npm run app:dev` (desktop) or `npm run dev` (UI only in a browser; Roblox
+and publishing features need the desktop app).
+
+### Releases
+
+Push a tag like `v2.0.0`. `.github/workflows/release.yml` builds with the secrets above and
+uploads `Corel.exe` to a GitHub release on `jakedev2/Corel`; installed copies update from there.
+
+Existing Roicon installs only check `jakedev2/Roicon` for an asset named `Roicon.exe`. To move
+them to Corel, attach the Corel binary renamed to `Roicon.exe` to a new, higher-versioned release
+in that repository; it installs itself as Corel and migrates their data.
+
+## Data
+
+- `%APPDATA%\Corel`: publishing schedules and icon images (copied from `%APPDATA%\Roicon`
+  on first start; the old folder is left untouched), the encrypted session in `secure\`.
+- Windows Credential Manager: Roblox sign-in and API key (migrated from Roicon's entries).
+- Everything else lives in your Supabase project. Settings → Data management exports a team as JSON.
+
+## Testing the database
+
+The migration was exercised with an in-memory Postgres (PGlite) covering invites, roles,
+permission overrides, bug numbering, notifications, conflict-safe script saves, snapshot
+de-duplication and member removal.

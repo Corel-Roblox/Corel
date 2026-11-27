@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="theme-color" content="#09080f">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Privacy Policy · Roicon</title>
+  <title>Privacy Policy · Corel</title>
   <link rel="icon" href="favicon.png">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -12,69 +12,74 @@
   <div class="sky"><span></span><i></i></div>
   <nav class="top">
     <div class="wrap">
-      <a class="brand" href="./"><img src="roicon-logo.png" alt="">Roicon</a>
+      <a class="brand" href="./"><img src="corel-logo.png" alt="">Corel</a>
       <span class="grow"></span>
       <a class="link" href="privacy.html">Privacy</a>
       <a class="link" href="terms.html">Terms</a>
-      <a class="link" href="https://github.com/jakedev2/Roicon">GitHub</a>
-      <a class="btn primary" href="https://github.com/jakedev2/Roicon/releases/latest/download/Roicon.exe" download>Download</a>
+      <a class="link" href="https://github.com/jakedev2/Corel">GitHub</a>
+      <a class="btn primary" href="https://github.com/jakedev2/Corel/releases/latest/download/Corel.exe" download>Download</a>
     </div>
   </nav>
   <div class="wrap">
 
     <main class="doc">
       <h1>Privacy Policy</h1>
-      <p class="updated">Last updated: November 25, 2026</p>
+      <p class="updated">Last updated: November 26, 2026</p>
 
-      <p>Roicon is a Windows desktop app that schedules countdown icons for Roblox experiences. This policy explains what information Roicon uses, where it is kept, and the choices you have. In short: Roicon runs on your computer, talks only to Roblox, and has no servers of its own.</p>
+      <p>Corel is a Windows desktop app for Roblox development teams: projects, icon publishing, analytics, bug tracking, a shared script library and team collaboration. This policy explains what information Corel uses, where it is kept, and the choices you have.</p>
 
-      <h2>Information Roicon uses</h2>
+      <h2>Information Corel uses</h2>
       <ul>
-        <li><strong>Your Roblox account basics</strong> (user ID, username, display name and avatar picture), received from Roblox when you sign in, so the app can show which account is connected.</li>
-        <li><strong>Which accounts and groups you granted</strong> on Roblox's sign-in page, so the app can show them and upload icons on their behalf.</li>
-        <li><strong>Sign-in tokens</strong> issued by Roblox (an access token and a refresh token), used to call Roblox's APIs for you.</li>
-        <li><strong>Your experiences and icons</strong>: the universe and place IDs you add, the icon images you choose, your timer overlays, the update schedule and its progress.</li>
+        <li><strong>Your workspace account</strong>: email address, password (stored only as a hash by the authentication service), display name, optional username, Roblox username, bio and avatar picture.</li>
+        <li><strong>What you and your team create</strong>: teams, members and roles, projects, tasks, bug reports and attachments, comments, scripts and their versions, publishing schedules, imported analytics, activity history and notifications.</li>
+        <li><strong>Presence</strong>: whether you are online and which page or script you have open, shown to members of your team while the app is running, plus a "last active" time.</li>
+        <li><strong>Your Roblox account basics</strong> (user ID, username, display name and avatar), the accounts and groups you granted, and Roblox sign-in tokens, used to publish icons for you.</li>
+        <li><strong>Public experience statistics</strong> (visits, players online, favorites, votes) that Roblox shows publicly for the experiences in your projects.</li>
       </ul>
 
       <h2>Where it is stored</h2>
       <ul>
-        <li>All of it stays on your computer. App data and images are kept in <code>%APPDATA%\Roicon</code>.</li>
-        <li>Sign-in tokens, and any client secret or API key you enter, are stored in Windows Credential Manager on your PC.</li>
-        <li>Roicon has no servers, accounts or databases of its own, and it does not collect analytics or telemetry.</li>
+        <li><strong>Workspace data</strong> is stored in the Corel workspace server (a Supabase project) configured in your copy of the app, so it can be shared with your team and synced between devices. If you or your organisation connected your own server, that organisation operates it.</li>
+        <li><strong>On your computer</strong>: publishing schedules and icon images in %APPDATA%\Corel, and your workspace sign-in, encrypted with your Windows account.</li>
+        <li><strong>Roblox sign-in tokens</strong> and any API key you enter are stored in Windows Credential Manager on your PC and are never sent to the workspace server.</li>
+        <li>Corel does not collect analytics or telemetry about how you use the app.</li>
       </ul>
 
       <h2>Who it is shared with</h2>
       <ul>
-        <li><strong>Roblox.</strong> Roicon sends requests only to Roblox's own services (for example <code>apis.roblox.com</code>, <code>games.roblox.com</code> and <code>thumbnails.roblox.com</code>) to sign you in, read game and place names, upload your icon images, check their moderation status and set place icons. Images you upload become assets on your Roblox account or group and are handled under Roblox's own <a href="https://en.help.roblox.com/hc/articles/115004630823">Privacy Policy</a>.</li>
-        <li><strong>Your phone, if you use the phone relay.</strong> "Send to phone" serves a status page over your local network to devices that scan its QR code. The link contains a private token and you can replace it at any time with "New link".</li>
-        <li>Roicon never sells, rents or shares your information with anyone else.</li>
+        <li><strong>Members of your teams.</strong> Content you create in a team is visible to its members according to their roles and each project's visibility settings. Your profile (name, avatar, Roblox username, online status) is visible to people who share a team with you.</li>
+        <li><strong>The workspace server provider</strong> (Supabase), which hosts the database, authentication, file storage and real-time sync on behalf of whoever operates the server.</li>
+        <li><strong>Roblox.</strong> The app sends requests to Roblox's services to sign you in, read experience information and statistics, upload icon images, check moderation and set place icons. Uploaded images become assets on your Roblox account or group.</li>
+        <li><strong>Your phone</strong>, if you use the phone relay, over your local network with a private link you can replace at any time.</li>
+        <li>Corel never sells or rents your information.</li>
       </ul>
 
       <h2>Your choices</h2>
       <ul>
-        <li><strong>Disconnect</strong> in Roicon's Settings revokes Roicon's Roblox tokens and removes them from your PC. You can also remove Roicon from the authorized apps in your Roblox account settings.</li>
-        <li>Removing an experience from Roicon deletes it from the app. Nothing changes on Roblox.</li>
-        <li>To delete everything, disconnect, quit Roicon and delete the <code>%APPDATA%\Roicon</code> folder.</li>
+        <li>Edit your profile and notification preferences in Settings at any time.</li>
+        <li>Export a team's data as JSON from Settings → Data management.</li>
+        <li>Leave a team, or delete your account from Settings → Account security. Deleting your account removes your profile and any team you own alone; comments and activity you left in other teams remain, shown as from a former member.</li>
+        <li>Disconnect Roblox in Settings → Integrations to revoke and remove Corel's Roblox tokens. You can also remove Corel from the authorized apps in your Roblox account settings.</li>
       </ul>
 
       <h2>Children</h2>
-      <p>Roblox's sign-in for third-party apps is available to users 13 and older. Roicon is meant for creators who manage their own Roblox experiences.</p>
+      <p>Roblox's sign-in for third-party apps is available to users 13 and older. Corel is meant for creators who manage their own Roblox experiences.</p>
 
       <h2>Changes</h2>
       <p>If this policy changes, the new version will be posted on this page with a new date.</p>
 
       <h2>Contact</h2>
-      <p>Questions or requests: open an issue at <a href="https://github.com/jakedev2/Roicon/issues">github.com/jakedev2/Roicon/issues</a>.</p>
+      <p>Questions or requests: open an issue at <a href="https://github.com/jakedev2/Corel/issues">github.com/jakedev2/Corel/issues</a>.</p>
     </main>
 
     <footer>
       <div class="row">
-        <span>© 2026 Roicon</span>
+        <span>© 2026 Corel</span>
         <span class="grow"></span>
         <a href="./">Home</a>
         <a href="terms.html">Terms of Service</a>
       </div>
-      <p>Roicon is not affiliated with, endorsed by or sponsored by Roblox Corporation.</p>
+      <p>Corel is not affiliated with, endorsed by or sponsored by Roblox Corporation.</p>
     </footer>
   </div>
   <script src="site.js"></script>
